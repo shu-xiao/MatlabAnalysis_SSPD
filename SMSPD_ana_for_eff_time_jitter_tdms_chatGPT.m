@@ -44,8 +44,8 @@ fig = uifigure('Name', 'Multi-Tab Plots', 'Position',[40 80 1400 700]);
 tabgroup = uitabgroup(fig, 'Position', [20 20 1300 650]);
 
 % for loop for different Ib, Vb files
-%for k = 1:length(file_table.Va)
-for k = 6:12
+for k = 1:length(file_table.Va)
+%for k = 6:12
     % d = load([Exp_para, num2str(Va(k)), '_mV.txt']);
     % file_path = fullfile(folder_path,file_list(k).name);
     file_path = fullfile(folder_path,string(file_table.name(k)));
@@ -118,7 +118,8 @@ for k = 6:12
 
 
     % 計算效率
-    Ef_event = length(find(sigma <= STDEV_CUT)); 
+    %Ef_event = length(find(sigma <= STDEV_CUT)); 
+    Ef_event = nPass + nFail;
     eff(k) = nPass / Ef_event;
     % 顯示圖形
     %figure;
@@ -142,7 +143,7 @@ for k = 6:12
 
     tile4 = nexttile(t);
     plot(tile4,Raw_sig, 'g');
-    title(tile4,'Raw-signal');
+    title(tile4,'Raw-Data-ave');
 
     %subplot(2, 2, 2);
     tile5 = nexttile(t);
@@ -160,22 +161,33 @@ for k = 6:12
     title(tile7,'Vamplitude-passPreSel');
     
     % Summary table
-    vars = ["File Name";"nPass";"nFail";"nFail_pre";"Total"];
-    passEve = [string(file_table.name(k));nPass;nFail;nFail_pre;nPass+nFail+nFail_pre];
-    Config_name = ["STDEV-CUT";"V-CUT";"DATA-LENGTH";"PEAK-LENGTH";"CONTROAL-REGION"];
-    Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION))];
+    vars = ["File Name";"nPass";"nFail";"nFail_pre";"Effi";"Total"];
+    passEve = [string(file_table.name(k));nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre];
+    Config_name = ["STDEV-CUT";"V-CUT";"DATA-LENGTH";"PEAK-LENGTH";"CONTROAL-REGION";" "];
+    Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION));"NaN"];
     tdata = table(vars,passEve,Config_name,Config_cut,'VariableNames',{'Variable','Name/ # of Events','Config_name','Value'});
     uit = uitable(tab(k),"Data",tdata,'Units', 'Normalized','Position', [0.5 0.0 0.4 0.2]);
 
 end
 
+% summary effi plot
+tab(k+1)=uitab(tabgroup,'Title', sprintf('Tab_%i', k+1));
+ax = uiaxes(tab(k+1), 'Position', [40 40 1200 500]);
+plot(ax,file_table.Va,eff)
+title(ax, 'Efficiency vs Bias Voltage');
+xlabel(ax, 'Bias Voltage (mV)');
+ylabel(ax, 'Efficiency');
+
+
 % 將結果保存到 txt 檔案
 F = [Va, eff];
 outputname = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT), '_mV_efficiency.txt'];
-
+outputnameFig = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT),'.fig'];
 save(fullfile(folder_path, outputname), 'F', '-ascii');
-disp(['save data to ', outputname]);
-
+savefig(fig,fullfile(folder_path, outputnameFig));
+%disp(['save data to ', fullfile(folder_path, outputname)]);
+disp(['save data to ', folder_path]);
+disp(['Text file name: ', outputname]);
 
 %% function block
 function [basename, mV_value] = extract_info(filename)
