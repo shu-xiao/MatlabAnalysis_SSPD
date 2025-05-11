@@ -1,4 +1,6 @@
 # MatlabAnalysis_SSPD
-Upload some files
-
-add test
+## Analysis Steps
+1. Run [rename_file_TDMS_convert_Chatgpt.m](rename_file_TDMS_convert_Chatgpt.m).  Convert TDMS file to text file.
+2. Run [SMSPD_waveform_plot_ChatGPT.m](SMSPD_waveform_plot_ChatGPT.m) (Optional). Check to waveform of data.
+3. Run [SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m](SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m). Generate some plot and the efficiencies of SSPD.
+   * You need to edit the analysis parameters by yourself. It depends on the measurement condition.
