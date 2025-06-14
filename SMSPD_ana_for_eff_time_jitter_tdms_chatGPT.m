@@ -29,10 +29,17 @@ file_table = sortrows(file_table,1);
 % threshold
 STDEV_CUT = 0.05; % Threshold of STDEV 標準差閾值
 V_CUT = 0.03; % Threshold of voltage amplitude 閾值
+index_setting = 1; % 1: 800nm, 2: 515nm
+
+
+Wavelength = ['800 nm'; '515 nm'];
+datalen = [125; 250];
+nPulse = [4; 1];
+laserConf = table(Index, datalen, nPulse);
 
 Nevent = 10000; % 1 ~ 10000
-DATA_LENGTH = 125.; % The number of data points of each event 每個事件的數據點數目
-NUM_PEAKS = 4; % The number of signal peak in each event (usually = 1) 一個事件有幾個peak，通常是1
+DATA_LENGTH = laserConf.datalen(index_setting); % The number of data points of each event 每個事件的數據點數目
+NUM_PEAKS = laserConf.nPulse(index_setting); % The number of signal peak in each event (usually = 1) 一個事件有幾個peak，通常是1
 
 CONTROL_REGION = [1 15]; % The range of control region 沒有訊號的數據點
 %CONTROL_REGION = [1 DATA_LENGTH];  % defaul setting 預設設定
