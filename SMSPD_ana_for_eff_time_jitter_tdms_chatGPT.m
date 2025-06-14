@@ -12,7 +12,7 @@ file_list = dir(fullfile(folder_path, '*mV.txt'));
 if (isempty(file_list))
     error('No text file is found!')
 end
-[basename, ~] = extract_info(file_list(1).name);
+[basename,~, ~] = extract_info(file_list(1).name);
 
 % sort by voltage
 %Vb = sort(extract_mV_from_list(file_list));
@@ -237,9 +237,9 @@ outputnameFig = [basename, '_',num2str(V_CUT),'_noSTDEVcut.fig'];
 savefig(fig,fullfile(folder_path, outputnameFig));  
 
 outputnameVmax = [basename, '_Vmax.txt'];
-save(fullfile(folder_path, outputnameVmax), 'VmaxArray', '-ascii');
+save(fullfile(folder_path, outputnameVmax), 'VmaxArray', '-ascii',"-tabs");
 outputnameVmax = [basename, '_VmaxIndex.txt'];
-save(fullfile(folder_path, outputnameVmax), 'VmaxIndexArray', '-ascii');
+save(fullfile(folder_path, outputnameVmax), 'VmaxIndexArray', '-ascii',"-tabs");
 
 %disp(['save data to ', fullfile(folder_path, outputname)]);
 % save waveform
@@ -262,10 +262,11 @@ function [basename, mV_value, Ib] = extract_info(filename)
     % Apply regular expression
     tokens  = regexp(filename, '_(\d+)mV', 'tokens');
     uA      = regexp(filename, '_(\d+)uA', 'tokens');
+    prefix  = regexp(filename, '^(.*?Pulse_)', 'tokens');
     Ib      = str2double(uA{1}{1});
     % Check if a match is found
     if ~isempty(tokens)
-        basename = tokens{1}{1};
+        basename = prefix{1}{1};
         mV_value = str2double(tokens{1}{1});
         %mV_value = str2double(tokens{1}{2}); % Convert extracted string to number
     else
