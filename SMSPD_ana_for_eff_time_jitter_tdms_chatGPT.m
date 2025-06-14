@@ -154,7 +154,8 @@ for k = 1:length(file_table.Vb)
     
     % The configure of plots 顯示圖形
     %figure;
-    tab(k)=uitab(tabgroup,'Title', sprintf('Tab_%i', k));
+    %tab(k)=uitab(tabgroup,'Title', sprintf('Tab_%i', k));
+    tab(k)=uitab(tabgroup,'Title', sprintf('%.0f uA', file_table(k,:).Ib));
     t = tiledlayout(tab(k), 3, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
     %tab_axes = axes('parent',tab(k));
     %hold(tab_axes,'on')
@@ -215,7 +216,7 @@ end
 % end of loop files
 
 % summary effi plot
-tab(k+1)=uitab(tabgroup,'Title', sprintf('Tab_%i', k+1));
+tab(k+1)=uitab(tabgroup,'Title', sprintf('Effi'));
 ax = uiaxes(tab(k+1), 'Position', [40 40 1200 500]);
 %plot(ax,file_table.Vb,eff)
 plot(ax,file_table.Ib,eff)
@@ -279,8 +280,8 @@ function [mV_values, Ib] = extract_mV_from_list(filenames)
     % Input: cell array of filenames
     % Output: array of extracted mV values
 
-    mV_values = NaN(1,length(filenames)); % Preallocate array for mV values
-    Ib = NaN(1,length(filenames)); % Preallocate array for mV values
+    mV_values = NaN(length(filenames),1); % Preallocate array for mV values
+    Ib = NaN(length(filenames),1); % Preallocate array for mV values
 
     parfor i = 1:length(filenames)
         [~, mV_values(i), Ib(i)] = extract_info(filenames(i,:).name);
