@@ -1,10 +1,9 @@
 %% 資料夾路徑
 tic
 %import SMSPD_waveform_plot_ChatGPT.*
-folder_path = 'D:\game\Pulse_800_0nW_0degrees';
+folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Jun\Laser\2-6_plasmonic\20250611\4p8K\Pulse\515\10000kHz\30000nW\90degrees\20250611_003334\Pulse_515_30000nW_90degrees';
 
 % 實驗參數
-% Exp_para = 'SMSPD_NbTiN_1_1-1_Pulse_450_30000nW_0degrees_';
 
 % 電壓範圍'
 file_list = dir(fullfile(folder_path, '*mV.txt'));
@@ -21,15 +20,13 @@ file_table = struct2table(file_list);
 file_table = addvars(file_table,Vb, Ib,'Before',1);
 file_table = sortrows(file_table,1);
 
-%Vb = [5,10:20,25,30];
-%Vb = [30,25];
 
 %% 預分配效率數組
 
 % threshold
 STDEV_CUT = 0.05; % Threshold of STDEV 標準差閾值
 V_CUT = 0.03; % Threshold of voltage amplitude 閾值
-index_setting = 1; % 1: 800nm, 2: 515nm
+index_setting = 2; % 1: 800nm, 2: 515nm
 
 
 Wavelength = ['800 nm'; '515 nm'];
@@ -58,9 +55,7 @@ temp_j = 1;
 % for loop for different Ib, Vb files
 for k = 1:length(file_table.Vb)
 %for k = 6:12
-    % d = load([Exp_para, num2str(Vb(k)), '_mV.txt']);
-    % file_path = fullfile(folder_path,file_list(k).name);
-    file_path = fullfile(folder_path,string(file_table(1,:).name)); 
+    file_path = fullfile(folder_path,string(file_table(k,:).name)); 
     disp(['processing... ', num2str(k), '/',num2str(length(file_table.Vb))])
     
     d = load(file_path, '-ascii'); % Loading data
@@ -77,9 +72,7 @@ for k = 1:length(file_table.Vb)
     Vamplitude = zeros(Nevent, 1);
     jitter = NaN(Nevent, 1);
     sigma = zeros(Nevent, 1);
-    %Vmax = zeros(Nevent, 1);
-    %VmaxIndex = zeros(Nevent, 1);
-    
+
 
     Raw_sig_ave = zeros(DATA_LENGTH,1);
     temp_sig = zeros(DATA_LENGTH,1);
@@ -100,7 +93,6 @@ for k = 1:length(file_table.Vb)
 
         % Calculate sigma 計算標準差
         sigma(i) = std(s(1:PEAK_LENGTH));   % the range can be changed
-        %[Vmax(i), VmaxIndex(i)] = max(s);
         [VmaxArray(i,k), VmaxIndexArray(i,k)] = max(s);
 
         if (warning_preselction && nFail_pre > Nevent*0.1)
@@ -160,14 +152,9 @@ for k = 1:length(file_table.Vb)
     eff(k) = nPass / Ef_event;
     
     % The configure of plots 顯示圖形
-    %figure;
-    %tab(k)=uitab(tabgroup,'Title', sprintf('Tab_%i', k));
     tab(k)=uitab(tabgroup,'Title', sprintf('%.0f uA', file_table(k,:).Ib));
     t = tiledlayout(tab(k), 3, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
-    %tab_axes = axes('parent',tab(k));
-    %hold(tab_axes,'on')
-    
-    %subplot(2, 2, 1);
+
     tile1 = nexttile(t, 1);
     plot(tile1,sig_region, 'g');
     title(tile1,'Signal-ave');
@@ -185,7 +172,6 @@ for k = 1:length(file_table.Vb)
     ylim(tile4,[min(-0.01,min(Raw_sig_ave)*1.1), max(0.01,max(Raw_sig_ave)*1.1)]);
     title(tile4,'Raw-Data-ave');
 
-    %subplot(2, 2, 2);
     tile5 = nexttile(t);
     %histogram(tile5,Vmax);
     histogram(tile5,VmaxArray(:,k));
@@ -201,13 +187,11 @@ for k = 1:length(file_table.Vb)
     xlim(tile6,[1, PEAK_LENGTH]);
     title(tile6,'Histogram of VmaxIndex');
 
-    %subplot(2, 2, 3);
+
     tile7 = nexttile(t);
     plot(tile7,temp_sig, 'g');
     ylim(tile7,[min(-0.01,min(temp_sig)*1.1), max(0.01,max(temp_sig)*1.1)]);
     title(tile7,'100th event waveform');
-    %plot(tile7,deltaSig, 'g');
-    %title(tile7,'deltaSig');
 
 
     
