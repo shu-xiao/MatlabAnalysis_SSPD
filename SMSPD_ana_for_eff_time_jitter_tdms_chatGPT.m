@@ -1,13 +1,13 @@
 %% 資料夾路徑
 tic
 %import SMSPD_waveform_plot_ChatGPT.*
-folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Apr\Laser\1-10\20250503\4.68\Pulse\800\80000kHz\300000nW\0degrees\20250503_013751\Pulse_800_300000nW_0degrees';
+folder_path = 'D:\game\Pulse_800_0nW_0degrees';
 
 % 實驗參數
 % Exp_para = 'SMSPD_NbTiN_1_1-1_Pulse_450_30000nW_0degrees_';
 
 % 電壓範圍'
-file_list = dir(fullfile(folder_path, '*_mV.txt'));
+file_list = dir(fullfile(folder_path, '*mV.txt'));
 
 if (isempty(file_list))
     error('No text file is found!')
@@ -15,43 +15,48 @@ end
 [basename, ~] = extract_info(file_list(1).name);
 
 % sort by voltage
-%Va = sort(extract_mV_from_list(file_list));
-Va = extract_mV_from_list(file_list);
+%Vb = sort(extract_mV_from_list(file_list));
+[Vb, Ib] = extract_mV_from_list(file_list);
 file_table = struct2table(file_list);
-file_table = addvars(file_table,Va,'Before',1);
+file_table = addvars(file_table,Vb, Ib,'Before',1);
 file_table = sortrows(file_table,1);
 
-%Va = [5,10:20,25,30];
-%Va = [30,25];
+%Vb = [5,10:20,25,30];
+%Vb = [30,25];
 
 %% 預分配效率數組
+
 % threshold
-STDEV_CUT = 0.03; % 標準差閾值
-V_CUT = 0.02; % voltage amplitude 閾值
+STDEV_CUT = 0.05; % Threshold of STDEV 標準差閾值
+V_CUT = 0.03; % Threshold of voltage amplitude 閾值
 
-Nevent = 10000; % 1 到 10000
-DATA_LENGTH = 125.; % 每個事件的數據點數目
-NUM_PEAKS = 4; % 一個事件有幾個peak，通常是1
+Nevent = 10000; % 1 ~ 10000
+DATA_LENGTH = 125.; % The number of data points of each event 每個事件的數據點數目
+NUM_PEAKS = 4; % The number of signal peak in each event (usually = 1) 一個事件有幾個peak，通常是1
 
-CONTROL_REGION = [1 15]; % 沒有訊號的數據點
-%CONTROL_REGION = [1 DATA_LENGTH];  % 預設設定
-PEAK_LENGTH = ceil(DATA_LENGTH/NUM_PEAKS); % 第一個peak的數據點數目
+CONTROL_REGION = [1 15]; % The range of control region 沒有訊號的數據點
+%CONTROL_REGION = [1 DATA_LENGTH];  % defaul setting 預設設定
+PEAK_LENGTH = ceil(DATA_LENGTH/NUM_PEAKS); % The range of first peak 第一個peak的數據點數目
 
-eff = zeros(length(Va), 1);
+eff = zeros(length(Vb), 1);
+temp_waveform = NaN(DATA_LENGTH,50);
+VmaxArray = zeros(Nevent, 50);
+VmaxIndexArray = zeros(Nevent, 50);
 
 % setting for tab with figures
 fig = uifigure('Name', 'Multi-Tab Plots', 'Position',[40 80 1400 700]);
 tabgroup = uitabgroup(fig, 'Position', [20 20 1300 650]);
 
+temp_j = 1;
 % for loop for different Ib, Vb files
-for k = 1:length(file_table.Va)
+for k = 1:length(file_table.Vb)
 %for k = 6:12
-    % d = load([Exp_para, num2str(Va(k)), '_mV.txt']);
+    % d = load([Exp_para, num2str(Vb(k)), '_mV.txt']);
     % file_path = fullfile(folder_path,file_list(k).name);
-    file_path = fullfile(folder_path,string(file_table.name(k)));
-    disp(['processing... ', num2str(k), '/',num2str(length(file_table.Va))])
+    file_path = fullfile(folder_path,string(file_table(1,:).name)); 
+    disp(['processing... ', num2str(k), '/',num2str(length(file_table.Vb))])
     
-    d = load(file_path, '-ascii'); % 快速加載數據
+    d = load(file_path, '-ascii'); % Loading data
     signal = d(:, 1);
     trigger = d(:, 2);
     clear d
@@ -65,27 +70,51 @@ for k = 1:length(file_table.Va)
     Vamplitude = zeros(Nevent, 1);
     jitter = NaN(Nevent, 1);
     sigma = zeros(Nevent, 1);
+    %Vmax = zeros(Nevent, 1);
+    %VmaxIndex = zeros(Nevent, 1);
+    
 
-    Raw_sig = zeros(DATA_LENGTH,1);
+    Raw_sig_ave = zeros(DATA_LENGTH,1);
+    temp_sig = zeros(DATA_LENGTH,1);
     fail_presel = zeros(PEAK_LENGTH, 1);
     fail_sel = zeros(PEAK_LENGTH, 1);
     sig_region = zeros(PEAK_LENGTH, 1);
     
-    % loop Events
-    for i = 1:10000 %Nevent 
+    warning_preselction = true;
+    
+    % loop Events in one of files
+    for i = 1:Nevent 
         
         index_peak = (1:PEAK_LENGTH) + DATA_LENGTH * (i); % index of i events
         index = (1:DATA_LENGTH) + DATA_LENGTH * (i); % index of i events
-        Raw_sig = Raw_sig + signal(index);
-        s = signal(index_peak);  % signal in i event, length = DATA_LENGTH
+        Raw_sig_ave = Raw_sig_ave + signal(index);
+        s = signal(index_peak);  % signal of 1st peak in i event, length = DATA_LENGTH
+        s_raw = signal(index);   % signal of all peaks in i event, length = DATA_LENGTH
 
-        % 計算 sigma
+        % Calculate sigma 計算標準差
         sigma(i) = std(s(1:PEAK_LENGTH));   % the range can be changed
+        %[Vmax(i), VmaxIndex(i)] = max(s);
+        [VmaxArray(i,k), VmaxIndexArray(i,k)] = max(s);
 
-       % pre-selection
-       if sigma(i) <= STDEV_CUT
+        if (warning_preselction && nFail_pre > Nevent*0.1)
+            warning_preselction = false;
+            warning('k = %d. Too many events fail pre-selection', k)
+        end
+
+        %if (true && k>=5 && k<=10 && i==100)
+        if (true  && i==100)
+            temp_waveform(:,temp_j) = s_raw;
+            %outputname = [basename, '_test_waveform_',num2str(temp_j), '.txt'];
+            %save(fullfile(folder_path, outputname), 's_raw', '-ascii');
+            temp_j = temp_j + 1;
+        end
+        if (i==100)
+            temp_sig = s_raw;
+        end
+        % pre-selection
+        if true & sigma(i) <= STDEV_CUT
             q = s + q;
-            s1 = s(1:PEAK_LENGTH);  % signal region
+            s1 = s(1:PEAK_LENGTH);  % The data point of signal region
             %sbg = s(CONTROL_REGION); % control region
             %Vamplitude(i) = max(s1) - min(s1); 
             Vamplitude(i) = max(s1) - min(s1(CONTROL_REGION)); % signal amplitude
@@ -95,7 +124,7 @@ for k = 1:length(file_table.Va)
             ntr = find(dtr == max(dtr), 1);
             jitter(i) = ntr(1) - ndeltaSig(1);
             % selection
-            count = length(find(s1 > V_CUT)); 
+            count = length(find(s1 > V_CUT)); % selection (Voltage cut)
             if count >= 2
                 sig_region = sig_region + s1;
                 count = 1;
@@ -105,23 +134,25 @@ for k = 1:length(file_table.Va)
                 nFail = nFail + 1;
             end
             % nPass = nPass + count;
-       else
+       else 
            fail_presel = fail_presel + s;
            nFail_pre = nFail_pre + 1;
-       end
+       end % end of pre-selection
     end 
-    % finish loop over event
+    % finish loop over event in one of files
+
     fail_presel = fail_presel/nFail_pre;
     fail_sel = fail_sel/nFail;
     sig_region = sig_region/nPass;
-    Raw_sig = Raw_sig/Nevent;
+    Raw_sig_ave = Raw_sig_ave/Nevent;
 
 
-    % 計算效率
+    % Calculate the efficiency 計算效率
     %Ef_event = length(find(sigma <= STDEV_CUT)); 
     Ef_event = nPass + nFail;
     eff(k) = nPass / Ef_event;
-    % 顯示圖形
+    
+    % The configure of plots 顯示圖形
     %figure;
     tab(k)=uitab(tabgroup,'Title', sprintf('Tab_%i', k));
     t = tiledlayout(tab(k), 3, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
@@ -142,84 +173,117 @@ for k = 1:length(file_table.Va)
     title(tile3,'fail-presel-ave');
 
     tile4 = nexttile(t);
-    plot(tile4,Raw_sig, 'g');
+    plot(tile4,Raw_sig_ave, 'g');
+    ylim(tile4,[min(-0.01,min(Raw_sig_ave)*1.1), max(0.01,max(Raw_sig_ave)*1.1)]);
     title(tile4,'Raw-Data-ave');
 
     %subplot(2, 2, 2);
     tile5 = nexttile(t);
-    histogram(tile5,sort(sigma));
-    title(tile5,'Histogram of Sigma');
-
-    %subplot(2, 2, 3);
-    tile6 = nexttile(t);
-    plot(tile6,deltaSig, 'g');
-    title(tile6,'deltaSig');
+    %histogram(tile5,Vmax);
+    histogram(tile5,VmaxArray(:,k));
+    %xlim(tile5,[-0.01, max(0.01,max(Vmax)*1.1)]);
+    xlim(tile5,[-0.01, max(0.01,max(VmaxArray(:,k))*1.1)]);
+    title(tile5,'Histogram of Vmax');
 
     %subplot(2, 2, 4);
+    tile6 = nexttile(t);
+    %plot(tile6,Vamplitude);
+    %histogram(tile6,VmaxIndex);
+    histogram(tile6,VmaxIndexArray(:,k));
+    xlim(tile6,[1, PEAK_LENGTH]);
+    title(tile6,'Histogram of VmaxIndex');
+
+    %subplot(2, 2, 3);
     tile7 = nexttile(t);
-    plot(tile7,Vamplitude);
-    title(tile7,'Vamplitude-passPreSel');
+    plot(tile7,temp_sig, 'g');
+    ylim(tile7,[min(-0.01,min(temp_sig)*1.1), max(0.01,max(temp_sig)*1.1)]);
+    title(tile7,'100th event waveform');
+    %plot(tile7,deltaSig, 'g');
+    %title(tile7,'deltaSig');
+
+
     
-    % Summary table
+    % Summary statistic table
     vars = ["File Name";"nPass";"nFail";"nFail_pre";"Effi";"Total"];
-    passEve = [string(file_table.name(k));nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre];
+    passEve = [string(file_table(1,:).name);nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre];
     Config_name = ["STDEV-CUT";"V-CUT";"DATA-LENGTH";"PEAK-LENGTH";"CONTROAL-REGION";" "];
-    Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION));"NaN"];
+    Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION));" "];
     tdata = table(vars,passEve,Config_name,Config_cut,'VariableNames',{'Variable','Name/ # of Events','Config_name','Value'});
     uit = uitable(tab(k),"Data",tdata,'Units', 'Normalized','Position', [0.5 0.0 0.4 0.2]);
 
-end
+end 
+% end of loop files
 
 % summary effi plot
 tab(k+1)=uitab(tabgroup,'Title', sprintf('Tab_%i', k+1));
 ax = uiaxes(tab(k+1), 'Position', [40 40 1200 500]);
-plot(ax,file_table.Va,eff)
-title(ax, 'Efficiency vs Bias Voltage');
-xlabel(ax, 'Bias Voltage (mV)');
+%plot(ax,file_table.Vb,eff)
+plot(ax,file_table.Ib,eff)
+title(ax, 'Efficiency vs Bias Current');
+%xlabel(ax, 'Bias Voltage (mV)');
+xlabel(ax, 'Bias Current (mA)');
 ylabel(ax, 'Efficiency');
 
 
-% 將結果保存到 txt 檔案
-F = [Va, eff];
-outputname = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT), '_mV_efficiency.txt'];
-outputnameFig = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT),'.fig'];
+% 將Efficiency保存到 txt 檔案
+
+F = [file_table.Vb, eff];
+%outputname = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT), '_mV_efficiency.txt'];
+outputname = [basename, '_',num2str(V_CUT),'_noSTDEVcut_mV_efficiency.txt'];
 save(fullfile(folder_path, outputname), 'F', '-ascii');
-savefig(fig,fullfile(folder_path, outputnameFig));
+
+%outputnameFig = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT),'.fig'];
+outputnameFig = [basename, '_',num2str(V_CUT),'_noSTDEVcut.fig'];
+savefig(fig,fullfile(folder_path, outputnameFig));  
+
+outputnameVmax = [basename, '_Vmax.txt'];
+save(fullfile(folder_path, outputnameVmax), 'VmaxArray', '-ascii');
+outputnameVmax = [basename, '_VmaxIndex.txt'];
+save(fullfile(folder_path, outputnameVmax), 'VmaxIndexArray', '-ascii');
+
 %disp(['save data to ', fullfile(folder_path, outputname)]);
+% save waveform
+outputname2 = [basename, '_waveform_all.txt'];
+%save(fullfile(folder_path, outputname2), "temp_waveform", '-ascii');
+
 disp(['save data to ', folder_path]);
 disp(['Text file name: ', outputname]);
 
 %% function block
-function [basename, mV_value] = extract_info(filename)
+function [basename, mV_value, Ib] = extract_info(filename)
     % Extracts the mV value from a filename string.
     % Example: 'SMSPD_NbTiN_1_1-1_Pulse_450_30000nW_0degrees_100_mV.txt'
-    % Output: 100
+    % Output: mV_value, Ib. Type: double, double
+    % basenmae: prefix
+    % 
 
     % Regular expression to find the mV value before '_mV'
-    pattern = '(.*)_(\d+)_mV.txt';
 
     % Apply regular expression
-    tokens = regexp(filename, pattern, 'tokens');
-
+    tokens  = regexp(filename, '_(\d+)mV', 'tokens');
+    uA      = regexp(filename, '_(\d+)uA', 'tokens');
+    Ib      = str2double(uA{1}{1});
     % Check if a match is found
     if ~isempty(tokens)
         basename = tokens{1}{1};
-        mV_value = str2double(tokens{1}{2}); % Convert extracted string to number
+        mV_value = str2double(tokens{1}{1});
+        %mV_value = str2double(tokens{1}{2}); % Convert extracted string to number
     else
         error(['No mV value found in filename. filename: ', filename]);
     end
 end
 
-function mV_values = extract_mV_from_list(filenames)
+function [mV_values, Ib] = extract_mV_from_list(filenames)
     % Extracts mV values from a cell array of filenames.
     % Input: cell array of filenames
     % Output: array of extracted mV values
 
-    mV_values = NaN(size(filenames)); % Preallocate array for mV values
+    mV_values = NaN(1,length(filenames)); % Preallocate array for mV values
+    Ib = NaN(1,length(filenames)); % Preallocate array for mV values
 
     parfor i = 1:length(filenames)
-        [~, mV_values(i)] = extract_info(filenames(i).name);
-        %% mV_values(i) = extract_mV(filenames(i));
+        [~, mV_values(i), Ib(i)] = extract_info(filenames(i,:).name);
+        % mV_values(i) = extract_mV(filenames(i));
     end
 end
 

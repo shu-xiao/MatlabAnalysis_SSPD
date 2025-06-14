@@ -1,7 +1,7 @@
 % parpool("Processes",4)
 tStart = tic;
 % 資料夾路徑
-folder_path = 'D:\SNSPD_data\12K_515nm_30000nW\0degrees\20250106_213747';
+folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Apr\Laser\1-10\20250503\4.68\Pulse\800\80000kHz\200000nW\90degrees\20250503_020428';
 %folder_path = 'E:\SMSPD_NbTiN_1\Laser\1-1\20250108\12\Pulse\450\10000kHz\800nW\0degrees\20250108_011217';
 
 dryrunFile = 0;
@@ -12,6 +12,7 @@ Save_Adress = folder_path;
 
 % 資料夾中的所有 TDMS 檔案
 file_list = dir(fullfile(folder_path, '*.tdms'));
+% files = dir(fullfile(folder_path, '**', '*.tdms'));
 if(isempty(file_list))
     error('Cannot find TDMS file!');
 end
@@ -36,6 +37,8 @@ tStart = tic;
 if (dryrunFile <= length(file_list)) && (dryrunFile >=1)
     warning('DRY RUN!');
 end
+
+
 parfor i = 1:length(file_list)
     % 原始檔案名稱（包含路徑）
     if (i>dryrunFile)
@@ -66,9 +69,11 @@ parfor i = 1:length(file_list)
     else
         warning('檔案 %s 不存在，跳過該檔案。', filename_TDMS);
     end
+    
 end
 t2 = toc(tStart);
 tStart = tic;
+
 
 % 將轉換後的數據保存到 txt 檔案
 if  ~exist(fullfile(Save_Adress,dir_name), 'dir')  % Check if the directory exists
@@ -76,20 +81,23 @@ if  ~exist(fullfile(Save_Adress,dir_name), 'dir')  % Check if the directory exis
     fprintf('Directory "%s" created.\n', fullfile(Save_Adress,dir_name));
 end
 
-%%
+%
 disp(['Data is saved in ',fullfile(Save_Adress,dir_name)]);
 
 
 for i = 1:length(file_list)
+    
     % 構造新檔案名稱
     if (i>dryrunFile)
         break;
+        % disp('parfor break');
     end
+    disp(i);
     filename_new = fullfile(Save_Adress,dir_name, [Exp_para, num2str(converted_data(i).voltage), '_mV.txt']);
 
     % 保存數據到 txt 文件
     F = [converted_data(i).signal,  converted_data(i).trigger];
-    save(filename_new, 'F', '-ascii');  %% need to parallel
+    save(filename_new, 'F', '-ascii');  
     disp([int2str(i),'/',int2str(length(converted_data)),' output file name: ', fullfile([Exp_para, num2str(converted_data(i).voltage), '_mV.txt'])])
 end
 
