@@ -1,7 +1,7 @@
 %% 資料夾路徑
 tic
 %import SMSPD_waveform_plot_ChatGPT.*
-folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Jun\Laser\2-6_plasmonic\20250611\4p8K\Pulse\515\10000kHz\30000nW\90degrees\20250611_003334\Pulse_515_30000nW_90degrees';
+folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Jun\Laser\2-6_plasmonic\20250611\4p8K\Pulse\515\10000kHz\20000nW\0degrees\20250610_235932\Pulse_515_20000nW_0degrees';
 
 % 實驗參數
 
@@ -124,7 +124,7 @@ for k = 1:length(file_table.Vb)
             jitter(i) = ntr(1) - ndeltaSig(1);
             % selection
             count = length(find(s1 > V_CUT)); % selection (Voltage cut)
-            if count >= 2
+            if count >= 1
                 sig_region = sig_region + s1;
                 count = 1;
                 nPass = nPass + 1;
