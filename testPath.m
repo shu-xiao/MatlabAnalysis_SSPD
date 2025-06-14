@@ -48,3 +48,63 @@ end
 disp('1');
 %% block two
 disp('2');
+
+%% Test code 4
+fig = uifigure('Name', 'Tab Example');
+
+% Create tab group
+tg = uitabgroup(fig);
+
+% Create tabs
+tab1 = uitab(tg, 'Title', 'Controls');
+tab2 = uitab(tg, 'Title', 'Plot');
+tab3 = uitab(tg, 'Title', 'Table');
+ax = uiaxes(tab2, 'Position', [20 20 400 250]);
+x = linspace(0, 2*pi, 100);
+y = sin(x);
+plot(ax, x, y);
+title(ax, 'Sine Wave');
+
+% --- Tab 3: Add a table ---
+%% Test code 5
+% Example data setup
+num_plots = 4;  % Change this to however many plots you need
+x = linspace(0, 2*pi, 100);
+
+% Create the UI figure and tab group
+fig = uifigure('Name', 'Multi-Tab Plots', 'Position', [100 100 800 600]);
+tg = uitabgroup(fig, 'Position', [50 50 700 500]);
+
+% Loop to create tabs and plots
+for i = 1:num_plots
+    % Create a new tab
+    tab = uitab(tg, 'Title', ['Plot ' num2str(i)],'Units','normalized');
+    tab.Scrollable = 'on';
+
+    
+    % Create axes in the tab
+    ax = uiaxes(tab, 'Position', [50 50 700 500]);
+    
+    % Generate example plot
+    y = sin(x + i);  % Varying sine wave
+    plot(ax, x, y);
+    title(ax, ['Sine Wave #' num2str(i)]);
+end
+savefig(fig,'C:\Users\user\Downloads\testout.fig')
+%% testt
+fig = uifigure;
+vars = ["dd";"nPass";"nFail";"nFail_pre";"Total"];
+gg = ["ee";3;5;2;7];
+tdata = table(vars,gg,'VariableNames',{'Date',' '});
+uit = uitable(fig,"Data",tdata);
+
+%%
+fig = uifigure('Name', 'Multi-Tab Plots', 'Position', [40 80 1400 700]);
+tabgroup = uitabgroup(fig, 'Position', [20 20 1300 650]);
+k=1;
+tab(k)=uitab(tabgroup,'Title', sprintf('Tab_%i', k));
+vars = ["File Name";"nPass";"nFail";"nFail_pre";"Total"];
+    passEve = ["ee";3;4;5;6];
+    tdata = table(vars,passEve,'VariableNames',{'Variable',' # of Events'});
+    uit = uitable(tab(k),"Data",tdata,'Units', 'Normalized','Position', [0.5 0.0 0.4 0.2]);
+savefig(fig,'gggggg.fig');

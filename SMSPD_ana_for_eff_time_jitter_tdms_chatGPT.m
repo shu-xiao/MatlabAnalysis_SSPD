@@ -219,7 +219,7 @@ ylabel(ax, 'Efficiency');
 
 % 將Efficiency保存到 txt 檔案
 
-F = [file_table.Vb, eff];
+F = [file_table.Ib, eff, file_table.Vb];
 %outputname = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT), '_mV_efficiency.txt'];
 outputname = [basename, '_',num2str(V_CUT),'_noSTDEVcut_mV_efficiency.txt'];
 save(fullfile(folder_path, outputname), 'F', '-ascii');
