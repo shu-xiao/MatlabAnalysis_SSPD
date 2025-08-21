@@ -1,7 +1,7 @@
 %% 資料夾路徑
 tic
 %import SMSPD_waveform_plot_ChatGPT.*
-folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Jun\Laser\2-6_plasmonic\20250611\4p8K\Pulse\515\10000kHz\20000nW\0degrees\20250610_235932\Pulse_515_20000nW_0degrees';
+folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Jun\Laser\3-11_plasmonic90\20250701\4p8K\Pulse\515\10000kHz\10000nW\90degrees\20250701_015355\Pulse_515_10000nW_90degrees';
 
 % 實驗參數
 
@@ -32,24 +32,36 @@ index_setting = 2; % 1: 800nm, 2: 515nm
 Wavelength = ['800 nm'; '515 nm'];
 datalen = [125; 250];
 nPulse = [4; 1];
-laserConf = table(Index, datalen, nPulse);
+laserConf = table(Wavelength, datalen, nPulse);
 
 Nevent = 10000; % 1 ~ 10000
 DATA_LENGTH = laserConf.datalen(index_setting); % The number of data points of each event 每個事件的數據點數目
 NUM_PEAKS = laserConf.nPulse(index_setting); % The number of signal peak in each event (usually = 1) 一個事件有幾個peak，通常是1
 
-CONTROL_REGION = [1 15]; % The range of control region 沒有訊號的數據點
-%CONTROL_REGION = [1 DATA_LENGTH];  % defaul setting 預設設定
+% 800nm, 80 MHz
+%CONTROL_REGION = [20:25]; % The range of control region 沒有訊號的數據點
+%SIGNAL_REGION = [25:32]; % The range of signal region 沒有訊號的數據點
+% visible, 10 MHz
+CONTROL_REGION = [50:80]; % The range of control region 沒有訊號的數據點
+SIGNAL_REGION = [80:100]; % The range of signal region 沒有訊號的數據點
+
+
+%CONTROL_REGION = [1:DATA_LENGTH];  % defaul setting 預設設定
 PEAK_LENGTH = ceil(DATA_LENGTH/NUM_PEAKS); % The range of first peak 第一個peak的數據點數目
 
 eff = zeros(length(Vb), 1);
 temp_waveform = NaN(DATA_LENGTH,50);
 VmaxArray = zeros(Nevent, 50);
 VmaxIndexArray = zeros(Nevent, 50);
+amplitude_mean = zeros(length(Vb), 1);
+amplitude_stdev = zeros(length(Vb), 1);
+amplitude_effi = zeros(length(Vb), 3);
 
 % setting for tab with figures
 fig = uifigure('Name', 'Multi-Tab Plots', 'Position',[40 80 1400 700]);
-tabgroup = uitabgroup(fig, 'Position', [20 20 1300 650]);
+tabgroup = uitabgroup(fig, 'Position', [20 20 1300 450]);
+tabgroup2 = uitabgroup(fig, 'Position', [20 500 1300 200]);
+
 
 temp_j = 1;
 % for loop for different Ib, Vb files
@@ -70,7 +82,8 @@ for k = 1:length(file_table.Vb)
     q = zeros(PEAK_LENGTH, 1);
     nPass = 0; nFail_pre = 0; nFail = 0;
     Vamplitude = zeros(Nevent, 1);
-    jitter = NaN(Nevent, 1);
+    deltaMax = zeros(Nevent, 1);
+    jitter = zeros(Nevent, 1);
     sigma = zeros(Nevent, 1);
 
 
@@ -83,6 +96,7 @@ for k = 1:length(file_table.Vb)
     warning_preselction = true;
     
     % loop Events in one of files
+    amplitude_cut = 0.001*[5 7.5 10];
     for i = 1:Nevent 
         
         index_peak = (1:PEAK_LENGTH) + DATA_LENGTH * (i); % index of i events
@@ -110,17 +124,19 @@ for k = 1:length(file_table.Vb)
         if (i==100)
             temp_sig = s_raw;
         end
+
         % pre-selection
         if true & sigma(i) <= STDEV_CUT
             q = s + q;
             s1 = s(1:PEAK_LENGTH);  % The data point of signal region
-            %sbg = s(CONTROL_REGION); % control region
+            %sbg = s(CONTROL_REGION); % control reg0ion
             %Vamplitude(i) = max(s1) - min(s1); 
-            Vamplitude(i) = max(s1) - min(s1(CONTROL_REGION)); % signal amplitude
+            Vamplitude(i) = max(s1(SIGNAL_REGION)) - mean(s1(CONTROL_REGION)); % signal amplitude
             deltaSig = diff(s1);  % i+1 data point - i data point
             dtr = diff(trigger(index_peak));
-            ndeltaSig = find(deltaSig == max(deltaSig), 1);
-            ntr = find(dtr == max(dtr), 1);
+            deltaMax(i) = max(deltaSig);  % slope index of signal
+            ndeltaSig = find(deltaSig == max(deltaSig), 1); % max slope index of signal
+            ntr = find(dtr == max(dtr), 1);                 % max slope index of trigger
             jitter(i) = ntr(1) - ndeltaSig(1);
             % selection
             count = length(find(s1 > V_CUT)); % selection (Voltage cut)
@@ -133,6 +149,12 @@ for k = 1:length(file_table.Vb)
                 nFail = nFail + 1;
             end
             % nPass = nPass + count;
+
+            for n = 1:length(amplitude_cut)
+                if Vamplitude(i) >= amplitude_cut(n)
+                    amplitude_effi(k,n) = amplitude_effi(k,n) + 1;
+                end
+            end
        else 
            fail_presel = fail_presel + s;
            nFail_pre = nFail_pre + 1;
@@ -150,9 +172,16 @@ for k = 1:length(file_table.Vb)
     %Ef_event = length(find(sigma <= STDEV_CUT)); 
     Ef_event = nPass + nFail;
     eff(k) = nPass / Ef_event;
+    amplitude_mean(k) = mean(Vamplitude);
+    amplitude_stdev(k) = std(Vamplitude);
     
     % The configure of plots 顯示圖形
     tab(k)=uitab(tabgroup,'Title', sprintf('%.0f uA', file_table(k,:).Ib));
+    tab(k).Scrollable = 'on';
+    t = tiledlayout(tab(k), 3, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
+
+    tab2(k)=uitab(tabgroup2,'Title', sprintf('%.0f uA', file_table(k,:).Ib));
+    tab2(k).Scrollable = 'on';
     t = tiledlayout(tab(k), 3, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
 
     tile1 = nexttile(t, 1);
@@ -193,15 +222,24 @@ for k = 1:length(file_table.Vb)
     ylim(tile7,[min(-0.01,min(temp_sig)*1.1), max(0.01,max(temp_sig)*1.1)]);
     title(tile7,'100th event waveform');
 
+    tile8 = nexttile(t);
+    histogram(tile8,Vamplitude);
+    title(tile8,'Amplitude');
+    
+    tile9 = nexttile(t);
+    histogram(tile9,deltaMax);
+    title(tile9,'Max of delta signal');
+
 
     
     % Summary statistic table
     vars = ["File Name";"nPass";"nFail";"nFail_pre";"Effi";"Total"];
-    passEve = [string(file_table(1,:).name);nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre];
+    passEve = [string(file_table(k,:).name);nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre];
     Config_name = ["STDEV-CUT";"V-CUT";"DATA-LENGTH";"PEAK-LENGTH";"CONTROAL-REGION";" "];
     Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION));" "];
     tdata = table(vars,passEve,Config_name,Config_cut,'VariableNames',{'Variable','Name/ # of Events','Config_name','Value'});
-    uit = uitable(tab(k),"Data",tdata,'Units', 'Normalized','Position', [0.5 0.0 0.4 0.2]);
+    %uit = uitable(tab(k),"Data",tdata,'Units', 'Normalized','Position', [0.5 0 0.4 0.2]);
+    uit = uitable(tab2(k),"Data",tdata,'Position', [20 20 1200 180]); 
 
 end 
 % end of loop files
@@ -210,16 +248,20 @@ end
 tab(k+1)=uitab(tabgroup,'Title', sprintf('Effi'));
 ax = uiaxes(tab(k+1), 'Position', [40 40 1200 500]);
 %plot(ax,file_table.Vb,eff)
-plot(ax,file_table.Ib,eff)
+plot(ax,file_table.Ib/1000,eff,'-o','LineWidth',2)
+ylim(ax,[-0.1, 1.1]);
 title(ax, 'Efficiency vs Bias Current');
 %xlabel(ax, 'Bias Voltage (mV)');
 xlabel(ax, 'Bias Current (mA)');
 ylabel(ax, 'Efficiency');
+for k=1:numel(eff)
+      text(ax,file_table.Ib(k)/1000,eff(k)+0.05,sprintf('%.3f',eff(k)),'HorizontalAlignment','center');
+end
 
 
 % 將Efficiency保存到 txt 檔案
 
-F = [file_table.Ib, eff, file_table.Vb];
+F = [file_table.Ib, eff, file_table.Vb, amplitude_mean, amplitude_stdev];
 %outputname = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT), '_mV_efficiency.txt'];
 outputname = [basename, '_',num2str(V_CUT),'_noSTDEVcut_mV_efficiency.txt'];
 save(fullfile(folder_path, outputname), 'F', '-ascii');
@@ -232,6 +274,9 @@ outputnameVmax = [basename, '_Vmax.txt'];
 save(fullfile(folder_path, outputnameVmax), 'VmaxArray', '-ascii',"-tabs");
 outputnameVmax = [basename, '_VmaxIndex.txt'];
 save(fullfile(folder_path, outputnameVmax), 'VmaxIndexArray', '-ascii',"-tabs");
+
+outputnameVmax = [basename, '_darkcount.txt'];
+save(fullfile(folder_path, outputnameVmax), 'amplitude_effi', '-ascii',"-tabs");
 
 %disp(['save data to ', fullfile(folder_path, outputname)]);
 % save waveform
