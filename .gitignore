@@ -1,0 +1,7 @@
+SNSPD_data/
+*.tdms
+*.tdms_index
+*.mat
+*.asv
+test/
+.claude/
