@@ -1,0 +1,4 @@
+nptdms
+numpy
+scipy
+matplotlib
