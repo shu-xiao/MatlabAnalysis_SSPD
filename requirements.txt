@@ -1,4 +1,3 @@
-nptdms
-numpy
-scipy
-matplotlib
+nptdms>=1.0
+numpy>=1.17
+matplotlib>=3.0
