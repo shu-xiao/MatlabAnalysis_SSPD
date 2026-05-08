@@ -1,9 +1,7 @@
 """
 TDMS -> txt 自動轉換器（對應 rename_file_TDMS_convert_Chatgpt.m）
 
-功能：
-    自動掃描 folder_path 內所有 .tdms 檔，把每個檔案的訊號(signal)與觸發(trigger)
-    存成兩欄 ASCII 文字檔，輸出到子資料夾。
+加速版：用多核心同時處理多個 TDMS 檔案。
 
 執行步驟：
     1. 編輯下方「設定區」的路徑
@@ -12,8 +10,8 @@ TDMS -> txt 自動轉換器（對應 rename_file_TDMS_convert_Chatgpt.m）
 
 import os
 import re
-import warnings
 import numpy as np
+from multiprocessing import Pool, cpu_count
 from nptdms import TdmsFile
 
 
@@ -30,71 +28,68 @@ Save_Adress = folder_path
 # 實驗參數字串（會出現在輸出檔名前面）
 Exp_para = 'SMSPD_NbTiN_1_1-1_Pulse_450_800nW_0degrees_'
 
+# 平行處理用幾個核心。-1 表示用滿全部 CPU 核心；想保守一點可以設成 4
+NUM_WORKERS = -1
+
 
 # =====================================================================
-# 主程式
+# 工作函式：每個核心會分別呼叫這個函式來處理一個 TDMS 檔
 # =====================================================================
-
-# 從 Exp_para 抓出 "Pulse_xxx_xxxnW_xxxdegrees" 當輸出子資料夾名稱
-match = re.search(r'Pulse_\d+_\d+nW_\d+degrees', Exp_para)
-dir_name = match.group(0) if match else 'output'
-
-# 列出資料夾內所有 .tdms 檔
-file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
-file_list.sort()
-print(f'找到 {len(file_list)} 個 .tdms 檔')
-
-# 用一個 list 儲存每個檔案的轉換結果
-converted_data = []  # 每筆 = {'voltage': int, 'signal': array, 'trigger': array}
-
-# 逐檔讀取 TDMS
-for i, filename in enumerate(file_list, start=1):
+def convert_one_file(args):
+    filename, folder_path, output_dir, Exp_para = args
     full_path = os.path.join(folder_path, filename)
 
-    # 從檔名中找到 _XXXmV，抓出電壓值
+    # 從檔名抓電壓 (例如 _100mV)
     voltage_match = re.search(r'_(\d+)mV', filename)
     if not voltage_match:
-        warnings.warn(f'檔名中找不到電壓 (_XXXmV)，跳過: {filename}')
-        continue
+        return f'[跳過] 檔名找不到電壓: {filename}'
     voltage = int(voltage_match.group(1))
 
-    # 讀取 TDMS
-    if not os.path.isfile(full_path):
-        warnings.warn(f'檔案不存在，跳過: {full_path}')
-        continue
-
+    # 讀 TDMS、取出 signal 與 trigger
     tdms = TdmsFile.read(full_path)
     group = tdms['ADC Readout Channels']
     signal = group['chSig'][:]
     trigger = group['chTrig'][:]
 
-    converted_data.append({
-        'voltage': voltage,
-        'signal': signal,
-        'trigger': trigger,
-    })
-
-    print(f'{i}/{len(file_list)}  讀取成功: {filename}')
-
-# 建立輸出子資料夾（若不存在）
-output_dir = os.path.join(Save_Adress, dir_name)
-if not os.path.isdir(output_dir):
-    os.makedirs(output_dir)
-    print(f'建立輸出資料夾: {output_dir}')
-
-print(f'資料將輸出到: {output_dir}')
-
-# 寫出每個 voltage 對應的 .txt
-for i, data in enumerate(converted_data, start=1):
-    out_filename = f'{Exp_para}{data["voltage"]}_mV.txt'
+    # 寫成兩欄 ASCII txt
+    out_filename = f'{Exp_para}{voltage}_mV.txt'
     out_path = os.path.join(output_dir, out_filename)
-
-    # 兩欄：signal, trigger（與 .m 版本一致）
-    F = np.column_stack([data['signal'], data['trigger']])
-
-    # ASCII 格式，模擬 Matlab save -ascii 的 %14.7e
+    F = np.column_stack([signal, trigger])
     np.savetxt(out_path, F, fmt='%14.7e')
 
-    print(f'{i}/{len(converted_data)} 輸出: {out_filename}')
+    return f'OK: {out_filename}'
 
-print('Done')
+
+# =====================================================================
+# 主程式
+# Windows 上使用 multiprocessing 必須包在 if __name__ == '__main__': 裡面，
+# 否則 worker 啟動時會無限重複跑這段程式
+# =====================================================================
+if __name__ == '__main__':
+    # 從 Exp_para 抓出 "Pulse_xxx_xxxnW_xxxdegrees" 當輸出子資料夾名稱
+    match = re.search(r'Pulse_\d+_\d+nW_\d+degrees', Exp_para)
+    dir_name = match.group(0) if match else 'output'
+
+    # 列出所有 .tdms 檔
+    file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
+    file_list.sort()
+    print(f'找到 {len(file_list)} 個 .tdms 檔')
+
+    # 建立輸出資料夾（worker 開始之前一定要先建好）
+    output_dir = os.path.join(Save_Adress, dir_name)
+    os.makedirs(output_dir, exist_ok=True)
+    print(f'資料將輸出到: {output_dir}')
+
+    # 決定 worker 數量
+    n_workers = cpu_count() if NUM_WORKERS == -1 else NUM_WORKERS
+    print(f'使用 {n_workers} 個核心平行處理')
+
+    # 把每個 worker 需要的參數打包成一串 tuple
+    args_list = [(f, folder_path, output_dir, Exp_para) for f in file_list]
+
+    # 把工作丟給 pool，等所有 worker 跑完
+    with Pool(processes=n_workers) as pool:
+        for i, msg in enumerate(pool.imap_unordered(convert_one_file, args_list), start=1):
+            print(f'{i}/{len(args_list)}  {msg}')
+
+    print('Done')

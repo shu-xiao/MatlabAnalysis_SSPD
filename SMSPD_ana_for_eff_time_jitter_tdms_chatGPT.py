@@ -1,14 +1,8 @@
 """
 效率與 time jitter 分析（對應 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m）
 
-功能：
-    從 folder_path 讀取所有 *_mV.txt 檔，
-    對每個電壓計算偵測效率（efficiency），並畫出：
-      1. 訊號 s1 的波形
-      2. sigma 直方圖
-      3. ds1（s1 的差分）
-      4. Z（事件最大-最小幅度）
-    最終把 (Voltage, efficiency) 存成 .txt。
+加速版：用 numpy 向量化一次處理所有事件，取代逐事件的 for 迴圈。
+（電壓檔之間還是序列處理，因為要逐張畫圖；速度瓶頸在每個檔內部的事件迴圈）
 
 執行步驟：
     1. 編輯下方「設定區」的 folder_path
@@ -34,19 +28,17 @@ Nevent = 1000
 # 每個事件的取樣點數
 DATA_LENGTH = 1000
 
-# 標準差閾值（sigma threshold）：基線雜訊大於此值的事件被視為無效
+# 標準差閾值：基線雜訊大於此值的事件被視為無效
 stdth = 0.02
 
-# ds1 閾值（保留與原 .m 一致，目前僅作為註解使用）
+# ds1 閾值（保留與原 .m 一致，目前僅作為輸出檔名用）
 ds1th = 0.05
 
 
 # =====================================================================
 # 工具函式
 # =====================================================================
-
 def extract_info(filename):
-    """從檔名抽出 basename 和 mV 值"""
     match = re.search(r'(.*)_(\d+)_mV\.txt', filename)
     if not match:
         raise ValueError(f'檔名格式不符: {filename}')
@@ -59,14 +51,13 @@ def extract_info(filename):
 
 t_start = time.time()
 
-# 找出所有 *_mV.txt 並依電壓排序
+# 收集所有 *_mV.txt 並依電壓排序
 all_files = [f for f in os.listdir(folder_path) if f.endswith('_mV.txt')]
 if not all_files:
     raise RuntimeError('No text file is found!')
 
 file_with_voltage = [(f, extract_info(f)[1]) for f in all_files]
 file_with_voltage.sort(key=lambda x: x[1])
-
 file_list = [f for f, _ in file_with_voltage]
 Va = np.array([v for _, v in file_with_voltage])
 basename = extract_info(file_list[0])[0]
@@ -74,67 +65,86 @@ basename = extract_info(file_list[0])[0]
 # 預配置效率陣列
 eff = np.zeros(len(Va))
 
-# 對每個電壓做分析
+# 對每個電壓檔做分析
 for k in range(len(Va)):
     file_path = os.path.join(folder_path, file_list[k])
     print(f'processing... {k+1}/{len(Va)}')
 
-    # 載入 ASCII（兩欄：signal, trigger）
+    # 載入 ASCII 檔（兩欄：signal, trigger）
     d = np.loadtxt(file_path)
     signal = d[:, 0]
     trigger = d[:, 1]
 
-    # 預先配置每個事件的統計量
-    Z = np.full(Nevent, np.nan)        # 事件的最大-最小幅度
-    jitter = np.full(Nevent, np.nan)   # 觸發 vs 訊號最大值的時間差
-    sigma = np.zeros(Nevent)            # 事件基線雜訊
-    X = 0                               # 累計偵測到光子的事件數
+    # =================================================================
+    # 對齊原 .m 的索引邏輯：
+    #   for i = 1..Nevent: r = (1:DATA_LENGTH) + DATA_LENGTH*i
+    # 也就是說第一段資料從 index DATA_LENGTH 開始，總共取 Nevent 段
+    # 若資料長度不足，自動縮減到實際可分析的事件數
+    # =================================================================
+    actual_Nevent = min(Nevent, len(signal) // DATA_LENGTH - 1)
 
-    # 為了在最後一個事件結束時還能畫圖，宣告 s1, ds1 預設值
-    s1 = np.zeros(DATA_LENGTH)
-    ds1 = np.zeros(DATA_LENGTH - 1)
+    # 把訊號重塑成 2D：每一列是一個事件，共 actual_Nevent 列、DATA_LENGTH 行
+    sig_mat = signal[DATA_LENGTH : DATA_LENGTH + actual_Nevent * DATA_LENGTH] \
+              .reshape(actual_Nevent, DATA_LENGTH)
+    trg_mat = trigger[DATA_LENGTH : DATA_LENGTH + actual_Nevent * DATA_LENGTH] \
+              .reshape(actual_Nevent, DATA_LENGTH)
 
-    # 對每個事件處理
-    for i in range(Nevent):
-        # 對應 Matlab 的 r = (1:DATA_LENGTH) + DATA_LENGTH*(i)
-        # i 在 Matlab 從 1 開始，這裡 Python 從 0 開始，因此用 (i+1)
-        start = DATA_LENGTH * (i + 1)
-        end = start + DATA_LENGTH
+    # =================================================================
+    # 一次計算所有事件的統計量（這就是「向量化」的核心）
+    # axis=1 表示「對每列做運算」，所以結果是長度 = actual_Nevent 的陣列
+    # =================================================================
 
-        # 若資料長度不足，跳過
-        if end > len(signal):
-            break
+    # 每個事件的標準差（ddof=1 對應 Matlab 的 std）
+    sigma = np.std(sig_mat, axis=1, ddof=1)
 
-        s = signal[start:end]
-        # 計算這個事件的標準差（雜訊水準）
-        sigma[i] = np.std(s, ddof=1)  # ddof=1 對應 Matlab 的 std
+    # 哪些事件雜訊夠小，算有效事件
+    valid = sigma <= stdth
 
-        if sigma[i] <= stdth:
-            s1 = s.copy()
-            Z[i] = np.max(s1) - np.min(s1)
-            ds1 = np.diff(s1)
-            dtr = np.diff(trigger[start:end])
+    # 每個事件的最大-最小幅度（無效事件填 NaN）
+    Z = np.full(actual_Nevent, np.nan)
+    Z[valid] = sig_mat[valid].max(axis=1) - sig_mat[valid].min(axis=1)
 
-            # 訊號最高斜率位置 vs 觸發最高斜率位置
-            nds1 = int(np.argmax(ds1))
-            ntr = int(np.argmax(dtr))
-            jitter[i] = ntr - nds1
+    # 訊號與觸發的差分（找上升沿位置用）
+    ds = np.diff(sig_mat, axis=1)
+    dtr = np.diff(trg_mat, axis=1)
 
-            # 計算「有沒有偵測到光子」：s1 超過閾值就算 1 次
-            count = int(np.sum(s1 > stdth))
-            if count >= 2:
-                count = 1
-            X += count
+    # 每個事件中「最大斜率」的取樣位置
+    nds1 = np.argmax(ds, axis=1)
+    ntr = np.argmax(dtr, axis=1)
 
-    # 效率 = 偵測到光子的事件 / 有效事件
-    Ef_event = int(np.sum(sigma <= stdth))
+    # time jitter = 觸發上升沿位置 - 訊號上升沿位置
+    jitter = np.full(actual_Nevent, np.nan)
+    jitter[valid] = ntr[valid] - nds1[valid]
+
+    # =================================================================
+    # 計算效率：count = 該事件有沒有偵測到光子
+    # 原 .m 邏輯：count = 樣本數 (s > stdth)；若 >= 2 則 count = 1
+    # 等價於：「事件中只要有任何一個樣本 > stdth，count = 1，否則 0」
+    # =================================================================
+    count = (sig_mat > stdth).any(axis=1).astype(int)
+
+    # X = 偵測到光子的有效事件數
+    X = int(count[valid].sum())
+    Ef_event = int(valid.sum())
+
     if Ef_event > 0:
         eff[k] = X / Ef_event
     else:
         eff[k] = 0.0
-        print(f'  [警告] 電壓 {Va[k]} 沒有有效事件 (sigma > {stdth})')
+        print(f'  [警告] 電壓 {Va[k]} 沒有有效事件')
 
-    # 畫圖：四連格
+    # =================================================================
+    # 畫圖：找出最後一個有效事件當代表，畫四連格
+    # =================================================================
+    valid_indices = np.where(valid)[0]
+    if len(valid_indices) > 0:
+        last_valid = valid_indices[-1]
+        s1 = sig_mat[last_valid]
+        ds1 = ds[last_valid]
+    else:
+        s1 = np.zeros(DATA_LENGTH)
+        ds1 = np.zeros(DATA_LENGTH - 1)
+
     fig, axes = plt.subplots(2, 2, figsize=(10, 8))
     fig.suptitle(f'Voltage = {Va[k]} mV')
 
@@ -159,7 +169,6 @@ for k in range(len(Va)):
 # =====================================================================
 # 輸出最終 (Voltage, efficiency) 結果
 # =====================================================================
-
 F = np.column_stack([Va, eff])
 output_name = f'{basename}_{ds1th}_{stdth}_mV_efficiency.txt'
 output_path = os.path.join(folder_path, output_name)
