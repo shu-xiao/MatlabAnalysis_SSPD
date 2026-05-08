@@ -39,11 +39,27 @@ codegen/
 
 # === Local-only exclusions ===
 
-# Forbidden raw data folder (per CLAUDE.md)
+# Raw data folder
 SNSPD_data/
 
-# Claude Code per-machine config
+# Claude Code per-machine / project config
 .claude/
+CLAUDE.md
 
 # Local TDMS test files (large binary data)
 test/
+
+# Local measurement data and results
+IPcurve.txt
+*_efficiency.txt
+*.fig
+
+# Local-only MATLAB scripts (not part of the public analysis pipeline)
+SNSPD_TDMS_convert.m
+SNSPD_TDMS_convert_charGPT.m
+SNSPD_TDMS_convert_charGPT.py
+SNSPD_TDMS_convert_multifolder.m
+TCSPC_time_jitter.m
+hot_belt_model.m
+makefolder.m
+rename_file.m
