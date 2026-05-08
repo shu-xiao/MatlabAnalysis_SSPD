@@ -59,6 +59,7 @@ SNSPD_TDMS_convert.m
 SNSPD_TDMS_convert_charGPT.m
 SNSPD_TDMS_convert_charGPT.py
 SNSPD_TDMS_convert_multifolder.m
+SMSPD_ana_for_eff_time_jitter_tdms.m
 TCSPC_time_jitter.m
 hot_belt_model.m
 makefolder.m
