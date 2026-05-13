@@ -65,3 +65,6 @@ hot_belt_model.m
 makefolder.m
 rename_file.m
 testPath.m
+
+# Local-modified copies of GitHub-tracked scripts
+*_local.m

@@ -1,6 +1,6 @@
 tic
 % 資料夾路徑
-folder_path ='E:\SMSPD_NbTiN_1\Laser\1-1\20250107\4p5\Pulse\450\10000kHz\5000nW\0degrees\20250107_230159\Pulse_450_5000nW_0degrees';
+folder_path ='E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Apr\Laser\1-10\20250503\4.68\Pulse\800\80000kHz\0nW\0degrees\20250503_015313\Pulse_800_0nW_0degrees';
 
 % 實驗參數
 % Exp_para ='20241119_BroadbandSMSPD_P1_Pulse_450_8000nW_0degrees_';
@@ -23,12 +23,14 @@ Exp_para = basename;
 user_defined_event = 10001; % 使用者自定義的總事件數
 
 % 優化的預分配記憶體儲存
+DATA_LENGTH = 125.;
 num_va = length(Va);
-max_s1_data = zeros(1000, num_va); % 每個電壓的最大 s1 數據
+%max_s1_data = zeros(1000, num_va); % 每個電壓的最大 s1 數據
+max_s1_data = zeros(DATA_LENGTH, num_va); % 每個電壓的最大 s1 數據
 peak_max_values = zeros(1, num_va); % 儲存每個電壓的最大 peak 值
 
 disp('Loading Data...')
-DATA_LENGTH = 1000.;
+
 % num_va = 4;
 
 %% Loading Data
