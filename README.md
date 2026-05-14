@@ -29,15 +29,40 @@ A Python port of the main scripts is included. The logic mirrors the MATLAB code
 
 The `_v2.py` script implements the newer MATLAB logic (pre-selection + V_CUT + amplitude region analysis) and outputs an **interactive HTML** with a dropdown to switch between bias-voltage data — no PNG flood.
 
+The Python pipeline runs significantly faster than the MATLAB version thanks to:
+- Multi-core parallel processing (`multiprocessing.Pool`)
+- pandas C-engine ASCII parser (5-10× faster than `numpy.loadtxt`)
+- NumPy vectorization of the per-event inner loop
+- `tqdm` progress bar so you can see what's happening
+
 ### Setup
 
-Requires Python 3.8+.
+Requires Python 3.8 or newer.
+
+#### Windows
+
+If you installed Python from python.org, use the **py launcher** that comes with it:
 
 ```
-pip install -r requirements.txt
+py -m pip install -r requirements.txt
 ```
 
-Required packages: `nptdms`, `numpy`, `matplotlib`, `plotly`.
+If you have multiple Python versions, pin the one you want with `-3.X`:
+
+```
+py -3.11 -m pip install -r requirements.txt
+```
+
+#### macOS / Linux
+
+```
+python3 -m pip install -r requirements.txt
+```
+
+#### Required packages
+
+`nptdms`, `numpy`, `pandas`, `matplotlib`, `plotly`, `tqdm` — all pinned in
+[`requirements.txt`](requirements.txt).
 
 ### Usage
 
