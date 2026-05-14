@@ -5,13 +5,13 @@
 
 執行方式：
     1) 不帶參數 — 使用「設定區」的 folder_path
-       py -3.8 SMSPD_waveform_plot_ChatGPT.py
+       python SMSPD_waveform_plot_ChatGPT.py
 
     2) 指定資料夾
-       py -3.8 SMSPD_waveform_plot_ChatGPT.py -d "C:\\path\\to\\folder"
+       python SMSPD_waveform_plot_ChatGPT.py -d "C:\\path\\to\\folder"
 
     3) 指定單一 .txt 檔（只畫該檔的波形，不畫 peak vs voltage）
-       py -3.8 SMSPD_waveform_plot_ChatGPT.py -i "C:\\path\\to\\file_mV.txt"
+       python SMSPD_waveform_plot_ChatGPT.py -i "C:\\path\\to\\file_mV.txt"
 """
 
 import os

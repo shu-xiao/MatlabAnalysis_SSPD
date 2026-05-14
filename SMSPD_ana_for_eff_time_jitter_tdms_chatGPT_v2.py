@@ -4,13 +4,13 @@ SMSPD 效率 / time jitter / 振幅分析（互動式 HTML 版，多核心）
 
 執行方式：
     1) 不帶參數 — 使用「設定區」的 folder_path
-       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py
+       python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py
 
     2) 指定資料夾
-       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -d "C:\\path\\to\\folder"
+       python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -d "C:\\path\\to\\folder"
 
     3) 指定單一 .txt 檔
-       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -i "C:\\path\\to\\file_mV.txt"
+       python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -i "C:\\path\\to\\file_mV.txt"
 
 跑完後用瀏覽器打開產生的 .html 檔，下拉選單可切換不同 Vb。
 
@@ -94,7 +94,7 @@ NUM_WORKERS = -1
 
 # ============================================================================
 # ============================================================================
-#                          以下為程式邏輯（不用動）
+#                          以下為程式分析邏輯
 # ============================================================================
 # ============================================================================
 

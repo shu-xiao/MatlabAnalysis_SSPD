@@ -6,13 +6,13 @@
 
 執行方式：
     1) 不帶參數 — 使用「設定區」的 folder_path
-       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py
+       python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py
 
     2) 指定資料夾
-       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py -d "C:\\path\\to\\folder"
+       python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py -d "C:\\path\\to\\folder"
 
     3) 指定單一 .txt 檔
-       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py -i "C:\\path\\to\\file_mV.txt"
+       python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py -i "C:\\path\\to\\file_mV.txt"
 """
 
 import os

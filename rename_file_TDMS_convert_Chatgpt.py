@@ -5,13 +5,13 @@ TDMS -> txt 自動轉換器（對應 rename_file_TDMS_convert_Chatgpt.m）
 
 執行方式：
     1) 不帶參數 — 使用「設定區」的 folder_path
-       py -3.8 rename_file_TDMS_convert_Chatgpt.py
+       python rename_file_TDMS_convert_Chatgpt.py
 
     2) 指定資料夾
-       py -3.8 rename_file_TDMS_convert_Chatgpt.py -d "C:\\path\\to\\folder"
+       python rename_file_TDMS_convert_Chatgpt.py -d "C:\\path\\to\\folder"
 
     3) 指定單一檔案
-       py -3.8 rename_file_TDMS_convert_Chatgpt.py -i "C:\\path\\to\\file.tdms"
+       python rename_file_TDMS_convert_Chatgpt.py -i "C:\\path\\to\\file.tdms"
 """
 
 import os
@@ -23,7 +23,7 @@ from nptdms import TdmsFile
 
 
 # =====================================================================
-# 進度條工具（與主邏輯分離）
+# 進度條工具
 # =====================================================================
 def _run_with_progress(pool, fn, args_list, desc='Processing'):
     """把 pool.imap_unordered 包上 tqdm 進度條；沒裝 tqdm 時自動退回純文字計數"""
