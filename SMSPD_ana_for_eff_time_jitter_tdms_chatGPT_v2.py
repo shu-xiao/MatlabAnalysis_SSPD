@@ -40,6 +40,22 @@ def _fast_loadtxt(path):
                        dtype=np.float64, engine='c').values
 
 
+def _run_with_progress(pool, fn, args_list, desc='Processing'):
+    """把 pool.imap_unordered 包上 tqdm 進度條；沒裝 tqdm 時退回純文字計數"""
+    try:
+        from tqdm import tqdm
+        return list(tqdm(pool.imap_unordered(fn, args_list),
+                         total=len(args_list), desc=desc, unit='file'))
+    except ImportError:
+        results = []
+        n = len(args_list)
+        for i, r in enumerate(pool.imap_unordered(fn, args_list), 1):
+            print(f'\r  {desc}: {i}/{n}', end='', flush=True)
+            results.append(r)
+        print()
+        return results
+
+
 # ============================================================================
 # ============================================================================
 #                            設定區（可直接修改）
@@ -236,11 +252,12 @@ if __name__ == '__main__':
     t_analyze = time.time()
     if n_workers > 1:
         with Pool(processes=n_workers) as pool:
-            results = pool.map(analyze_one_file, args_list)
+            results = _run_with_progress(pool, analyze_one_file, args_list,
+                                         desc='Analyzing files')
     else:
         results = [analyze_one_file(a) for a in args_list]
 
-    # 依 Vb 重新排序（pool 結果順序由 map 保證已對齊輸入，但保險起見再排）
+    # imap_unordered 不保證順序，所以依 Vb 排序
     results.sort(key=lambda r: r['Vb'])
     print(f'分析完成，耗時 {time.time() - t_analyze:.2f} s')
 

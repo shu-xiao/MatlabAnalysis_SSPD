@@ -23,6 +23,25 @@ from nptdms import TdmsFile
 
 
 # =====================================================================
+# 進度條工具（與主邏輯分離）
+# =====================================================================
+def _run_with_progress(pool, fn, args_list, desc='Processing'):
+    """把 pool.imap_unordered 包上 tqdm 進度條；沒裝 tqdm 時自動退回純文字計數"""
+    try:
+        from tqdm import tqdm
+        return list(tqdm(pool.imap_unordered(fn, args_list),
+                         total=len(args_list), desc=desc, unit='file'))
+    except ImportError:
+        results = []
+        n = len(args_list)
+        for i, r in enumerate(pool.imap_unordered(fn, args_list), 1):
+            print(f'\r  {desc}: {i}/{n}', end='', flush=True)
+            results.append(r)
+        print()
+        return results
+
+
+# =====================================================================
 # 設定區 — 請依實驗環境修改
 # =====================================================================
 
@@ -111,9 +130,8 @@ if __name__ == '__main__':
     # 把每個 worker 需要的參數打包成一串 tuple
     args_list = [(f, folder_path, output_dir, Exp_para) for f in file_list]
 
-    # 把工作丟給 pool，等所有 worker 跑完
+    # 把工作丟給 pool（_run_with_progress 會印進度條）
     with Pool(processes=n_workers) as pool:
-        for i, msg in enumerate(pool.imap_unordered(convert_one_file, args_list), start=1):
-            print(f'{i}/{len(args_list)}  {msg}')
+        _run_with_progress(pool, convert_one_file, args_list, desc='Converting TDMS')
 
     print('Done')
