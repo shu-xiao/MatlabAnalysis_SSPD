@@ -20,7 +20,14 @@ import re
 import time
 import argparse
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+
+
+def _fast_loadtxt(path):
+    """以 pandas C engine 解析 ASCII 數值檔，比 np.loadtxt 快 5-10×"""
+    return pd.read_csv(path, sep=r'\s+', header=None,
+                       dtype=np.float64, engine='c').values
 
 
 # =====================================================================
@@ -92,7 +99,7 @@ for k in range(len(Va)):
     print(f'processing... {k+1}/{len(Va)}')
 
     # 載入 ASCII 檔（兩欄：signal, trigger）
-    d = np.loadtxt(file_path)
+    d = _fast_loadtxt(file_path)
     signal = d[:, 0]
     trigger = d[:, 1]
 

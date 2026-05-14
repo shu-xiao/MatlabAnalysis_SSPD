@@ -19,8 +19,15 @@ import re
 import time
 import argparse
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from multiprocessing import Pool, cpu_count
+
+
+def _fast_loadtxt(path):
+    """以 pandas C engine 解析 ASCII 數值檔，比 np.loadtxt 快 5-10×"""
+    return pd.read_csv(path, sep=r'\s+', header=None,
+                       dtype=np.float64, engine='c').values
 
 
 # =====================================================================
@@ -56,8 +63,8 @@ def extract_info(filename):
 def process_one_file(args):
     file_path, voltage, user_defined_event, DATA_LENGTH = args
 
-    raw = np.loadtxt(file_path)
-    signal = raw[:, 0] if raw.ndim == 2 else raw
+    raw = _fast_loadtxt(file_path)
+    signal = raw[:, 0]
 
     # 計算實際事件數（不超過使用者上限，且不超過資料長度）
     total_event = min(user_defined_event, len(signal) // DATA_LENGTH)
