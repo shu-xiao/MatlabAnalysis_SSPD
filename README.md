@@ -18,30 +18,65 @@ Although MatLab has the built-in function to handle it, We use this package for 
 
 ## Python version
 
-A Python port of the main scripts is included. The logic mirrors the MATLAB code; only the file format differs (figures are saved as `.png` instead of `.fig`).
+A Python port of the main scripts is included. The logic mirrors the MATLAB code; figures are saved as `.png` or interactive `.html` (instead of MATLAB `.fig`).
 
-| MATLAB | Python |
-|--------|--------|
-| [rename_file_TDMS_convert_Chatgpt.m](rename_file_TDMS_convert_Chatgpt.m) | [rename_file_TDMS_convert_Chatgpt.py](rename_file_TDMS_convert_Chatgpt.py) |
-| [SMSPD_waveform_plot_ChatGPT.m](SMSPD_waveform_plot_ChatGPT.m) | [SMSPD_waveform_plot_ChatGPT.py](SMSPD_waveform_plot_ChatGPT.py) |
-| [SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m](SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m) | [SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py](SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py) |
+| Stage | MATLAB | Python |
+|-------|--------|--------|
+| TDMS → txt | [rename_file_TDMS_convert_Chatgpt.m](rename_file_TDMS_convert_Chatgpt.m) | [rename_file_TDMS_convert_Chatgpt.py](rename_file_TDMS_convert_Chatgpt.py) |
+| Waveform plot | [SMSPD_waveform_plot_ChatGPT.m](SMSPD_waveform_plot_ChatGPT.m) | [SMSPD_waveform_plot_ChatGPT.py](SMSPD_waveform_plot_ChatGPT.py) |
+| Efficiency / jitter (basic) | [SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m](SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m) | [SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py](SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py) |
+| Efficiency / jitter (interactive HTML) | (same as above) | [SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py](SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py) |
+
+The `_v2.py` script implements the newer MATLAB logic (pre-selection + V_CUT + amplitude region analysis) and outputs an **interactive HTML** with a dropdown to switch between bias-voltage data — no PNG flood.
 
 ### Setup
+
 Requires Python 3.8+.
 
 ```
 pip install -r requirements.txt
 ```
 
-Required packages: `nptdms`, `numpy`, `scipy`, `matplotlib`.
+Required packages: `nptdms`, `numpy`, `matplotlib`, `plotly`.
 
 ### Usage
-Each script is a self-contained, top-to-bottom script (no functions/classes to learn). Edit the path settings at the top of the file, then run:
+
+Each script can be run in three ways:
+
+1. **No arguments** — uses the `folder_path` set at the top of the file:
+
+   ```
+   python rename_file_TDMS_convert_Chatgpt.py
+   ```
+
+2. **`-d DIR`** — override with a directory of files:
+
+   ```
+   python rename_file_TDMS_convert_Chatgpt.py -d "C:\path\to\folder"
+   ```
+
+3. **`-i FILE`** — process a single file:
+
+   ```
+   python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -i "C:\path\to\file_mV.txt"
+   ```
+
+Editable parameters (thresholds, wavelength setting, regions of interest, etc.) are all in the *SETTINGS* block at the top of each script, with Chinese comments explaining each one.
+
+### Typical pipeline
 
 ```
-python rename_file_TDMS_convert_Chatgpt.py
-python SMSPD_waveform_plot_ChatGPT.py
-python SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.py
+TDMS folder
+   │
+   ▼  rename_file_TDMS_convert_Chatgpt.py
+*_mV.txt files
+   │
+   ├──▶ SMSPD_waveform_plot_ChatGPT.py        (optional, quick look)
+   │
+   └──▶ SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py
+            ▼
+        {basename}_analysis.html   (interactive)
+        {basename}_summary.html
+        {basename}_*_efficiency.txt
+        {basename}_Vmax.txt / VmaxIndex.txt / darkcount.txt
 ```
-
-The Python analysis steps are the same as the MATLAB version (TDMS → txt → waveform/efficiency plots).

@@ -3,13 +3,20 @@ TDMS -> txt 自動轉換器（對應 rename_file_TDMS_convert_Chatgpt.m）
 
 加速版：用多核心同時處理多個 TDMS 檔案。
 
-執行步驟：
-    1. 編輯下方「設定區」的路徑
-    2. 在命令列執行：py -3.8 rename_file_TDMS_convert_Chatgpt.py
+執行方式：
+    1) 不帶參數 — 使用「設定區」的 folder_path
+       py -3.8 rename_file_TDMS_convert_Chatgpt.py
+
+    2) 指定資料夾
+       py -3.8 rename_file_TDMS_convert_Chatgpt.py -d "C:\\path\\to\\folder"
+
+    3) 指定單一檔案
+       py -3.8 rename_file_TDMS_convert_Chatgpt.py -i "C:\\path\\to\\file.tdms"
 """
 
 import os
 import re
+import argparse
 import numpy as np
 from multiprocessing import Pool, cpu_count
 from nptdms import TdmsFile
@@ -66,14 +73,31 @@ def convert_one_file(args):
 # 否則 worker 啟動時會無限重複跑這段程式
 # =====================================================================
 if __name__ == '__main__':
+    # --- CLI 覆寫 ---
+    parser = argparse.ArgumentParser(description='TDMS -> txt converter')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-i', '--input', metavar='FILE', help='單一 .tdms 檔')
+    group.add_argument('-d', '--dir',   metavar='DIR',  help='含 .tdms 檔的資料夾')
+    cli = parser.parse_args()
+
+    if cli.input:
+        folder_path = os.path.dirname(os.path.abspath(cli.input))
+        Save_Adress = folder_path
+        file_list = [os.path.basename(cli.input)]
+    elif cli.dir:
+        folder_path = cli.dir
+        Save_Adress = folder_path
+        file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
+        file_list.sort()
+    else:
+        file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
+        file_list.sort()
+
+    print(f'找到 {len(file_list)} 個 .tdms 檔')
+
     # 從 Exp_para 抓出 "Pulse_xxx_xxxnW_xxxdegrees" 當輸出子資料夾名稱
     match = re.search(r'Pulse_\d+_\d+nW_\d+degrees', Exp_para)
     dir_name = match.group(0) if match else 'output'
-
-    # 列出所有 .tdms 檔
-    file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
-    file_list.sort()
-    print(f'找到 {len(file_list)} 個 .tdms 檔')
 
     # 建立輸出資料夾（worker 開始之前一定要先建好）
     output_dir = os.path.join(Save_Adress, dir_name)

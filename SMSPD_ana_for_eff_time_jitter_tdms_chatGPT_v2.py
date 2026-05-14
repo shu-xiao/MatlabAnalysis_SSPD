@@ -2,10 +2,17 @@
 SMSPD 效率 / time jitter / 振幅分析（互動式 HTML 版）
 對應 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT.m
 
-使用方式：
-    1. 修改下方「設定區」的參數（路徑、雷射、閾值）
-    2. 在命令列執行：py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py
-    3. 用瀏覽器打開產生的 .html 檔，下拉選單可切換不同 Vb
+執行方式：
+    1) 不帶參數 — 使用「設定區」的 folder_path
+       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py
+
+    2) 指定資料夾
+       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -d "C:\\path\\to\\folder"
+
+    3) 指定單一 .txt 檔
+       py -3.8 SMSPD_ana_for_eff_time_jitter_tdms_chatGPT_v2.py -i "C:\\path\\to\\file_mV.txt"
+
+跑完後用瀏覽器打開產生的 .html 檔，下拉選單可切換不同 Vb。
 
 輸出檔案：
     - {basename}_analysis.html           ← 互動式 9 連格圖（dropdown 切 Vb）
@@ -19,6 +26,7 @@ SMSPD 效率 / time jitter / 振幅分析（互動式 HTML 版）
 import os
 import re
 import time
+import argparse
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -134,7 +142,22 @@ def extract_info(filename):
 # --------------------------------------------------------------------
 t_start = time.time()
 
-all_files = [f for f in os.listdir(folder_path) if f.endswith('mV.txt')]
+# --- CLI 覆寫 ---
+parser = argparse.ArgumentParser(description='SMSPD analysis with interactive HTML output')
+group = parser.add_mutually_exclusive_group()
+group.add_argument('-i', '--input', metavar='FILE', help='單一 *_mV.txt 檔')
+group.add_argument('-d', '--dir',   metavar='DIR',  help='含 *_mV.txt 的資料夾')
+cli = parser.parse_args()
+
+if cli.input:
+    folder_path = os.path.dirname(os.path.abspath(cli.input))
+    all_files = [os.path.basename(cli.input)]
+elif cli.dir:
+    folder_path = cli.dir
+    all_files = [f for f in os.listdir(folder_path) if f.endswith('mV.txt')]
+else:
+    all_files = [f for f in os.listdir(folder_path) if f.endswith('mV.txt')]
+
 if not all_files:
     raise RuntimeError('No text file is found!')
 
