@@ -122,9 +122,8 @@ def extract_info(filename):
         raise ValueError(f'檔名格式不符: {filename}')
     return m_prefix.group(1), int(m_mV.group(1)), int(m_uA.group(1))
 
-
+## 主分析邏輯
 def analyze_one_file(args):
-    """Worker：讀一個檔、做完分析，回傳一個 dict。"""
     filename, _folder_path = args
 
     _, Vb, Ib = extract_info(filename)
@@ -146,7 +145,7 @@ def analyze_one_file(args):
     trg_peak_mat = trg_mat[:, :PEAK_LENGTH]
 
     Raw_sig_ave = sig_mat.mean(axis=0)
-    sigma = np.std(peak_mat, axis=1, ddof=1)
+    sigma = np.std(peak_mat, axis=1, ddof=1)  ## device by N-1
 
     Vmax_per_event      = peak_mat.max(axis=1)
     VmaxIndex_per_event = peak_mat.argmax(axis=1) + 1  # 1-indexed
@@ -156,7 +155,9 @@ def analyze_one_file(args):
     # Vamplitude（向量化）
     sig_reg  = peak_mat[:, sig_slice]
     ctrl_reg = peak_mat[:, ctrl_slice]
+    # 計算每個事件的振幅：信號區間最大值 - 控制區間平均值（背景雜訊）
     Vamplitude = sig_reg.max(axis=1) - ctrl_reg.mean(axis=1)
+    # 篩選振幅：只保留通過預篩選的事件，不合格事件設為 0.0（不參與統計計算）
     Vamplitude_for_stats = np.where(presel_pass, Vamplitude, 0.0)
 
     # jitter
@@ -167,7 +168,7 @@ def analyze_one_file(args):
     deltaMax  = deltaSig.max(axis=1)
 
     # Selection
-    has_signal = (peak_mat > V_CUT).any(axis=1)
+    has_signal = (peak_mat > V_CUT).any(axis=1) ## 有任一event大於閥值 (any)，救回傳True
     sel_pass   = presel_pass & has_signal
     sel_fail   = presel_pass & ~has_signal
 

@@ -47,12 +47,6 @@ If you installed Python from python.org, use the **py launcher** that comes with
 py -m pip install -r requirements.txt
 ```
 
-If you have multiple Python versions, pin the one you want with `-3.X`:
-
-```
-py -3.11 -m pip install -r requirements.txt
-```
-
 #### macOS / Linux
 
 ```
