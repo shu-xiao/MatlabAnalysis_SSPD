@@ -15,7 +15,7 @@ SMSPD 效率 / time jitter / 振幅分析（互動式 HTML 版，多核心）
 跑完後用瀏覽器打開產生的 .html 檔，下拉選單可切換不同 Vb。
 
 輸出檔案：
-    - {basename}_analysis.html           ← 互動式 10 連格圖（含 jitter 分布；dropdown 切 Vb）
+    - {basename}_analysis.html           ← 互動式 9 連格圖（含 jitter 分布；dropdown 切 Vb）
     - {basename}_summary.html            ← Efficiency vs Bias Current 總結圖
     - {basename}_*_efficiency.txt        ← [Ib, eff, Vb, amp_mean, amp_stdev, jitter_sys_ns]
     - {basename}_Vmax.txt
@@ -317,13 +317,12 @@ if __name__ == '__main__':
     subplot_titles = [
         'Signal-ave (pass)', 'fail-sel-ave', 'fail-presel-ave',
         'Raw-Data-ave', 'Histogram of Vmax', 'Histogram of VmaxIndex',
-        '100th event waveform', 'Histogram of Amplitude', 'Histogram of deltaMax',
-        'Histogram of Jitter (toa_diff)', '', '',
+        '100th event waveform', 'Histogram of Amplitude', 'Jitter distribution',
     ]
-    fig = make_subplots(rows=4, cols=3, subplot_titles=subplot_titles,
-                        vertical_spacing=0.08, horizontal_spacing=0.06)
+    fig = make_subplots(rows=3, cols=3, subplot_titles=subplot_titles,
+                        vertical_spacing=0.10, horizontal_spacing=0.06)
 
-    N_TRACES_PER_VB = 10  # 第 10 個是 jitter 直方圖
+    N_TRACES_PER_VB = 9
     for k, r in enumerate(results):
         vis = (k == 0)
         fig.add_trace(go.Scatter(y=r['sig_region_avg'], mode='lines', line=dict(color='green'),
@@ -342,11 +341,9 @@ if __name__ == '__main__':
                                   visible=vis, showlegend=False), row=3, col=1)
         fig.add_trace(go.Histogram(x=r['Vamplitude'],
                                     visible=vis, showlegend=False), row=3, col=2)
-        fig.add_trace(go.Histogram(x=r['deltaMax'],
-                                    visible=vis, showlegend=False), row=3, col=3)
-        # 第 10 格：jitter 分布（只用 positive toa_diff，即有效事件）
+        # tile 9：jitter 分布（取代 deltaMax，用 positive toa_diff 也就是有效事件）
         fig.add_trace(go.Histogram(x=r['positive_toa'],
-                                    visible=vis, showlegend=False), row=4, col=1)
+                                    visible=vis, showlegend=False), row=3, col=3)
 
     buttons = []
     for k, r in enumerate(results):
@@ -371,11 +368,11 @@ if __name__ == '__main__':
         title=dict(text=init_title, x=0.5),
         updatemenus=[dict(
             buttons=buttons, direction='down',
-            x=0.0, y=1.08, xanchor='left', yanchor='top',
+            x=0.0, y=1.10, xanchor='left', yanchor='top',
             bgcolor='lightgray',
         )],
-        height=1150, width=1500,
-        margin=dict(t=140, l=60, r=40, b=40),
+        height=900, width=1500,
+        margin=dict(t=120, l=60, r=40, b=40),
     )
 
     html_path = os.path.join(folder_path, f'{basename}_analysis.html')
