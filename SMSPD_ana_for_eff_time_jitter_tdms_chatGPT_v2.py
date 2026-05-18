@@ -15,9 +15,9 @@ SMSPD 效率 / time jitter / 振幅分析（互動式 HTML 版，多核心）
 跑完後用瀏覽器打開產生的 .html 檔，下拉選單可切換不同 Vb。
 
 輸出檔案：
-    - {basename}_analysis.html           ← 互動式 9 連格圖（dropdown 切 Vb）
+    - {basename}_analysis.html           ← 互動式 10 連格圖（含 jitter 分布；dropdown 切 Vb）
     - {basename}_summary.html            ← Efficiency vs Bias Current 總結圖
-    - {basename}_*_efficiency.txt        ← [Ib, eff, Vb, amp_mean, amp_stdev]
+    - {basename}_*_efficiency.txt        ← [Ib, eff, Vb, amp_mean, amp_stdev, jitter_sys_ns]
     - {basename}_Vmax.txt
     - {basename}_VmaxIndex.txt
     - {basename}_darkcount.txt
@@ -73,6 +73,9 @@ index_setting = 2
 STDEV_CUT = 0.05
 V_CUT = 0.03
 amplitude_cut = [0.005, 0.0075, 0.010]
+
+# 【3a】取樣週期（ns）— jitter_sys 計算用：std(toa_diff) * SAMPLE_PERIOD_NS
+SAMPLE_PERIOD_NS = 0.4
 
 # 【4】每檔分析的事件數
 Nevent = 10000
@@ -176,6 +179,31 @@ def analyze_one_file(args):
     nFail     = int(sel_fail.sum())
     nFail_pre = int((~presel_pass).sum())
 
+    # =====================================================================
+    # Jitter 計算（向量化）
+    #   toa_trigger = 觸發脈衝最大斜率位置（dtr 的 argmax）
+    #   toa_signal  = 訊號第一次跨越 V_CUT 的位置
+    #   toa_diff    = toa_signal - toa_trigger  → jitter source
+    #   jitter_sys  = std(有效 toa_diff) * SAMPLE_PERIOD_NS
+    # =====================================================================
+    toa_trigger = ntrg + 1  # 1-indexed 對應 Matlab 的 find(...)
+
+    # 找第一次「前一點 < V_CUT 且後一點 >= V_CUT」的位置
+    crossing = (peak_mat[:, :-1] < V_CUT) & (peak_mat[:, 1:] >= V_CUT)
+    has_crossing = crossing.any(axis=1)
+    toa_signal = np.argmax(crossing, axis=1) + 2  # +1 for crossing-after, +1 for 1-indexed
+
+    # 只對 sel_pass + has_crossing 的事件計算 toa_diff，其他事件設 -99（與 .m 一致）
+    valid_toa = sel_pass & has_crossing
+    toa_diff = np.where(valid_toa, toa_signal - toa_trigger, -99)
+
+    # jitter_sys = std(正值 toa_diff) * SAMPLE_PERIOD_NS（單位 ns）
+    positive_toa = toa_diff[toa_diff > 0]
+    if positive_toa.size > 1:
+        jitter_sys = float(np.std(positive_toa, ddof=1) * SAMPLE_PERIOD_NS)
+    else:
+        jitter_sys = -1.0
+
     sig_region_avg  = peak_mat[sel_pass].mean(axis=0) if nPass     else np.zeros(PEAK_LENGTH)
     fail_sel_avg    = peak_mat[sel_fail].mean(axis=0) if nFail     else np.zeros(PEAK_LENGTH)
     fail_presel_avg = sig_mat[~presel_pass].mean(axis=0) if nFail_pre else np.zeros(DATA_LENGTH)
@@ -198,6 +226,9 @@ def analyze_one_file(args):
         'temp_sig':        temp_sig,
         'Vamplitude':      Vamplitude_for_stats,
         'deltaMax':        deltaMax,
+        'toa_diff':        toa_diff,        # 每事件的 jitter 來源（-99 = 無效）
+        'positive_toa':    positive_toa,    # 給直方圖用
+        'jitter_sys':      jitter_sys,      # 該檔的系統 jitter (ns)
         'nPass': nPass, 'nFail': nFail, 'nFail_pre': nFail_pre,
         'eff':              eff_value,
         'amplitude_mean':   Vamplitude_for_stats.mean(),
@@ -269,6 +300,7 @@ if __name__ == '__main__':
     amplitude_mean  = np.array([r['amplitude_mean'] for r in results])
     amplitude_stdev = np.array([r['amplitude_stdev'] for r in results])
     amplitude_effi  = np.array([r['amplitude_effi'] for r in results], dtype=int)
+    jitter_sys_arr  = np.array([r['jitter_sys'] for r in results])
 
     VmaxArray      = np.zeros((Nevent, num_files))
     VmaxIndexArray = np.zeros((Nevent, num_files), dtype=int)
@@ -286,11 +318,12 @@ if __name__ == '__main__':
         'Signal-ave (pass)', 'fail-sel-ave', 'fail-presel-ave',
         'Raw-Data-ave', 'Histogram of Vmax', 'Histogram of VmaxIndex',
         '100th event waveform', 'Histogram of Amplitude', 'Histogram of deltaMax',
+        'Histogram of Jitter (toa_diff)', '', '',
     ]
-    fig = make_subplots(rows=3, cols=3, subplot_titles=subplot_titles,
-                        vertical_spacing=0.10, horizontal_spacing=0.06)
+    fig = make_subplots(rows=4, cols=3, subplot_titles=subplot_titles,
+                        vertical_spacing=0.08, horizontal_spacing=0.06)
 
-    N_TRACES_PER_VB = 9
+    N_TRACES_PER_VB = 10  # 第 10 個是 jitter 直方圖
     for k, r in enumerate(results):
         vis = (k == 0)
         fig.add_trace(go.Scatter(y=r['sig_region_avg'], mode='lines', line=dict(color='green'),
@@ -311,33 +344,38 @@ if __name__ == '__main__':
                                     visible=vis, showlegend=False), row=3, col=2)
         fig.add_trace(go.Histogram(x=r['deltaMax'],
                                     visible=vis, showlegend=False), row=3, col=3)
+        # 第 10 格：jitter 分布（只用 positive toa_diff，即有效事件）
+        fig.add_trace(go.Histogram(x=r['positive_toa'],
+                                    visible=vis, showlegend=False), row=4, col=1)
 
     buttons = []
     for k, r in enumerate(results):
         visibility = [False] * (N_TRACES_PER_VB * num_files)
         for i in range(N_TRACES_PER_VB):
             visibility[k * N_TRACES_PER_VB + i] = True
-        label = f'Vb={r["Vb"]}mV  Ib={r["Ib"]}uA  Eff={r["eff"]:.3f}'
+        label = f'Vb={r["Vb"]}mV  Ib={r["Ib"]}uA  Eff={r["eff"]:.3f}  Jitter={r["jitter_sys"]:.3f}ns'
         title = (f'Vb={r["Vb"]}mV, Ib={r["Ib"]}uA &nbsp;&nbsp; '
                  f'Pass={r["nPass"]}, Fail={r["nFail"]}, FailPre={r["nFail_pre"]} '
-                 f'&nbsp;&nbsp; Eff={r["eff"]:.3f}')
+                 f'&nbsp;&nbsp; Eff={r["eff"]:.3f} &nbsp;&nbsp; '
+                 f'Jitter_sys={r["jitter_sys"]:.3f} ns')
         buttons.append(dict(label=label, method='update',
                             args=[{'visible': visibility}, {'title.text': title}]))
 
     r0 = results[0]
     init_title = (f'Vb={r0["Vb"]}mV, Ib={r0["Ib"]}uA &nbsp;&nbsp; '
                   f'Pass={r0["nPass"]}, Fail={r0["nFail"]}, FailPre={r0["nFail_pre"]} '
-                  f'&nbsp;&nbsp; Eff={r0["eff"]:.3f}')
+                  f'&nbsp;&nbsp; Eff={r0["eff"]:.3f} &nbsp;&nbsp; '
+                  f'Jitter_sys={r0["jitter_sys"]:.3f} ns')
 
     fig.update_layout(
         title=dict(text=init_title, x=0.5),
         updatemenus=[dict(
             buttons=buttons, direction='down',
-            x=0.0, y=1.10, xanchor='left', yanchor='top',
+            x=0.0, y=1.08, xanchor='left', yanchor='top',
             bgcolor='lightgray',
         )],
-        height=900, width=1500,
-        margin=dict(t=120, l=60, r=40, b=40),
+        height=1150, width=1500,
+        margin=dict(t=140, l=60, r=40, b=40),
     )
 
     html_path = os.path.join(folder_path, f'{basename}_analysis.html')
@@ -367,8 +405,9 @@ if __name__ == '__main__':
 
     # --------------------------------------------------------------------
     # 輸出 txt
+    #   efficiency.txt 欄位: [Ib, eff, Vb, amp_mean, amp_stdev, jitter_sys_ns]
     # --------------------------------------------------------------------
-    F = np.column_stack([Ib_arr, eff, Vb_arr, amplitude_mean, amplitude_stdev])
+    F = np.column_stack([Ib_arr, eff, Vb_arr, amplitude_mean, amplitude_stdev, jitter_sys_arr])
     out_eff = os.path.join(folder_path, f'{basename}_{V_CUT}_noSTDEVcut_mV_efficiency.txt')
     np.savetxt(out_eff, F, fmt='%14.7e')
     print(f'  存檔: {out_eff}')
