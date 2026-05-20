@@ -1,7 +1,7 @@
 %% 資料夾路徑
 tic
 %import SMSPD_waveform_plot_ChatGPT.*
-folder_path = 'E:\SNSPD\SNSPD_data\SMSPD_NbTiN_2025Jun\Laser\3-11_plasmonic90\20250701\4p8K\Pulse\515\10000kHz\10000nW\90degrees\20250701_015355\Pulse_515_10000nW_90degrees';
+folder_path = 'D:\Matlab analysis\SNSPD_data\20250609\4p8K\Pulse\800\80000kHz\250000nW\0degrees\20250609_233545\Pulse_800_250000nW_0degrees';
 
 % 實驗參數
 
@@ -26,7 +26,7 @@ file_table = sortrows(file_table,1);
 % threshold
 STDEV_CUT = 0.05; % Threshold of STDEV 標準差閾值
 V_CUT = 0.03; % Threshold of voltage amplitude 閾值
-index_setting = 2; % 1: 800nm, 2: 515nm
+index_setting = 1; % 1: 800nm, 2: 515nm
 
 
 Wavelength = ['800 nm'; '515 nm'];
@@ -39,11 +39,11 @@ DATA_LENGTH = laserConf.datalen(index_setting); % The number of data points of e
 NUM_PEAKS = laserConf.nPulse(index_setting); % The number of signal peak in each event (usually = 1) 一個事件有幾個peak，通常是1
 
 % 800nm, 80 MHz
-%CONTROL_REGION = [20:25]; % The range of control region 沒有訊號的數據點
-%SIGNAL_REGION = [25:32]; % The range of signal region 沒有訊號的數據點
+CONTROL_REGION = [20:25]; % The range of control region 沒有訊號的數據點
+SIGNAL_REGION = [25:32]; % The range of signal region 沒有訊號的數據點
 % visible, 10 MHz
-CONTROL_REGION = [50:80]; % The range of control region 沒有訊號的數據點
-SIGNAL_REGION = [80:100]; % The range of signal region 沒有訊號的數據點
+%CONTROL_REGION = [50:80]; % The range of control region 沒有訊號的數據點
+%SIGNAL_REGION = 80:100; % The range of signal region 沒有訊號的數據點
 
 
 %CONTROL_REGION = [1:DATA_LENGTH];  % defaul setting 預設設定
@@ -56,6 +56,8 @@ VmaxIndexArray = zeros(Nevent, 50);
 amplitude_mean = zeros(length(Vb), 1);
 amplitude_stdev = zeros(length(Vb), 1);
 amplitude_effi = zeros(length(Vb), 3);
+jitter_sys_arr = -ones(length(Vb), 1);                 % 每個檔的 jitter_sys (ns)
+jitterArray = zeros(Nevent, length(file_table.Vb));    % 每事件的 toa_diff（分布用）
 
 % setting for tab with figures
 fig = uifigure('Name', 'Multi-Tab Plots', 'Position',[40 80 1400 700]);
@@ -66,7 +68,7 @@ tabgroup2 = uitabgroup(fig, 'Position', [20 500 1300 200]);
 temp_j = 1;
 % for loop for different Ib, Vb files
 for k = 1:length(file_table.Vb)
-%for k = 6:12
+%for k = 6:15
     file_path = fullfile(folder_path,string(file_table(k,:).name)); 
     disp(['processing... ', num2str(k), '/',num2str(length(file_table.Vb))])
     
@@ -77,14 +79,16 @@ for k = 1:length(file_table.Vb)
 
     if size(signal) ~= (Nevent+1)*DATA_LENGTH
         warning('k = %d. Data point does no match the size', k)
+        warning('Check index_setting')
     end
     
     q = zeros(PEAK_LENGTH, 1);
     nPass = 0; nFail_pre = 0; nFail = 0;
     Vamplitude = zeros(Nevent, 1);
     deltaMax = zeros(Nevent, 1);
-    jitter = zeros(Nevent, 1);
+    %t_arrive = zeros(Nevent, 1);
     sigma = zeros(Nevent, 1);
+    toaArray = zeros(Nevent, 3);   % 每個檔開頭都重置，避免上一檔的資料殘留
 
 
     Raw_sig_ave = zeros(DATA_LENGTH,1);
@@ -135,18 +139,31 @@ for k = 1:length(file_table.Vb)
             deltaSig = diff(s1);  % i+1 data point - i data point
             dtr = diff(trigger(index_peak));
             deltaMax(i) = max(deltaSig);  % slope index of signal
-            ndeltaSig = find(deltaSig == max(deltaSig), 1); % max slope index of signal
-            ntr = find(dtr == max(dtr), 1);                 % max slope index of trigger
-            jitter(i) = ntr(1) - ndeltaSig(1);
+            % Jitter calculation
+            toaArray(i,1) = find(dtr == max(dtr), 1);       % index of laser trigger: defined by max slope (positive)
+            %index_signal = find(deltaSig == max(deltaSig), 1); % index of signal pulse: max slope index of signal
+            
+            
             % selection
             count = length(find(s1 > V_CUT)); % selection (Voltage cut)
             if count >= 1
                 sig_region = sig_region + s1;
                 count = 1;
                 nPass = nPass + 1;
+                % 找訊號跟Vcut的交界點
+                idx_cross = find(s1(1:end-1) < V_CUT & s1(2:end) >= V_CUT, 1);
+                if ~isempty(idx_cross)
+                    toaArray(i,2) = idx_cross + 1;
+                    toaArray(i,3) = toaArray(i,2) - toaArray(i,1); % signal - laser
+                else
+                    toaArray(i,2) = -99;
+                    toaArray(i,3) = -99;
+                end
             else
                 fail_sel = fail_sel + s1;
                 nFail = nFail + 1;
+                toaArray(i,2) = -99;
+                toaArray(i,3) = -99;
             end
             % nPass = nPass + count;
 
@@ -166,6 +183,14 @@ for k = 1:length(file_table.Vb)
     fail_sel = fail_sel/nFail;
     sig_region = sig_region/nPass;
     Raw_sig_ave = Raw_sig_ave/Nevent;
+    toa_pass = toaArray(:, 3);
+    if (~isempty(toa_pass(toa_pass > 0)))
+        jitter_sys = std(toa_pass(toa_pass > 0))*0.4; % unit: ns
+    else
+        jitter_sys = -1.;
+    end
+    jitter_sys_arr(k) = jitter_sys;
+    jitterArray(:, k) = toaArray(:, 3);   % 存下這個檔的 jitter 分布
 
 
     % Calculate the efficiency 計算效率
@@ -227,16 +252,20 @@ for k = 1:length(file_table.Vb)
     title(tile8,'Amplitude');
     
     tile9 = nexttile(t);
-    histogram(tile9,deltaMax);
-    title(tile9,'Max of delta signal');
+    % 'cumcount'：y 軸為累積事件數（raw count，不 normalize / scale）
+    % 舊版：histogram(tile9, toaArray(toaArray(:,3) > 0, 3));
+    histogram(tile9, toaArray(toaArray(:,3) ~= -99 , 3)); 
+    %ylim(tile9,[-0.05, max(0.1,max(Raw_sig_ave)*1.1)]);
+    %title(tile9, sprintf('toa dist. (sys = %.3f ns)', jitter_sys));
+    title(tile9, sprintf('toa dist. (sys=%.3f ns) | >0:%d  ~=0:%d  nPass:%d', jitter_sys, sum(toaArray(:,3) > 0), sum(toaArray(:,3) ~= 0), nPass));
 
 
     
     % Summary statistic table
-    vars = ["File Name";"nPass";"nFail";"nFail_pre";"Effi";"Total"];
-    passEve = [string(file_table(k,:).name);nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre];
-    Config_name = ["STDEV-CUT";"V-CUT";"DATA-LENGTH";"PEAK-LENGTH";"CONTROAL-REGION";" "];
-    Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION));" "];
+    vars = ["File Name";"nPass";"nFail";"nFail_pre";"Effi";"Total";"Jitter (ns)"];
+    passEve = [string(file_table(k,:).name);nPass;nFail;nFail_pre;eff(k);nPass+nFail+nFail_pre;jitter_sys];
+    Config_name = ["STDEV-CUT";"V-CUT";"DATA-LENGTH";"PEAK-LENGTH";"CONTROAL-REGION";" ";" "];
+    Config_cut = [STDEV_CUT;V_CUT;DATA_LENGTH;PEAK_LENGTH;strjoin(string(CONTROL_REGION));" ";" "];
     tdata = table(vars,passEve,Config_name,Config_cut,'VariableNames',{'Variable','Name/ # of Events','Config_name','Value'});
     %uit = uitable(tab(k),"Data",tdata,'Units', 'Normalized','Position', [0.5 0 0.4 0.2]);
     uit = uitable(tab2(k),"Data",tdata,'Position', [20 20 1200 180]); 
@@ -261,7 +290,8 @@ end
 
 % 將Efficiency保存到 txt 檔案
 
-F = [file_table.Ib, eff, file_table.Vb, amplitude_mean, amplitude_stdev];
+% Fix: 用 jitter_sys_arr（每檔的 jitter）取代 jitter_sys（只有最後一檔的值）
+F = [file_table.Ib, eff, file_table.Vb, amplitude_mean, amplitude_stdev, jitter_sys_arr];
 %outputname = [basename, '_',num2str(V_CUT),'_', num2str(STDEV_CUT), '_mV_efficiency.txt'];
 outputname = [basename, '_',num2str(V_CUT),'_noSTDEVcut_mV_efficiency.txt'];
 save(fullfile(folder_path, outputname), 'F', '-ascii');
@@ -277,6 +307,10 @@ save(fullfile(folder_path, outputnameVmax), 'VmaxIndexArray', '-ascii',"-tabs");
 
 outputnameVmax = [basename, '_darkcount.txt'];
 save(fullfile(folder_path, outputnameVmax), 'amplitude_effi', '-ascii',"-tabs");
+
+% Jitter 分布：每事件的 toa_diff（Nevent x num_files），-99 表示無效
+outputnameJitter = [basename, '_jitterDist.txt'];
+save(fullfile(folder_path, outputnameJitter), 'jitterArray', '-ascii',"-tabs");
 
 %disp(['save data to ', fullfile(folder_path, outputname)]);
 % save waveform

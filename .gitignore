@@ -68,3 +68,6 @@ testPath.m
 
 # Local-modified copies of GitHub-tracked scripts
 *_local.m
+
+# VS Code workspace settings
+.vscode/
