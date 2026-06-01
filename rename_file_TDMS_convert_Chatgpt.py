@@ -16,10 +16,43 @@ TDMS -> txt 自動轉換器（對應 rename_file_TDMS_convert_Chatgpt.m）
 
 import os
 import re
+import sys
 import argparse
 import numpy as np
+import pandas as pd
 from multiprocessing import Pool, cpu_count
 from nptdms import TdmsFile
+
+
+def normalize_path(path_str: str) -> str:
+    """
+    跨平台路徑正規化，讓 Windows 路徑和 WSL 路徑互通。
+
+    在 WSL/Linux 下執行時：
+      E:\\SNSPD\\foo  或  E:/SNSPD/foo  ->  /mnt/e/SNSPD/foo
+    在 Windows 下執行時：
+      /mnt/e/SNSPD/foo  ->  E:\\SNSPD\\foo
+    其他情況（相對路徑、已是正確格式）保持不變。
+    """
+    if not path_str:
+        return path_str
+
+    if sys.platform == 'win32':
+        # Windows host：把 WSL 路徑轉成 Windows 路徑
+        m = re.match(r'^/mnt/([a-zA-Z])(/.*)$', path_str)
+        if m:
+            drive = m.group(1).upper()
+            rest = m.group(2).replace('/', '\\')
+            return f"{drive}:{rest}"
+        return path_str
+
+    # WSL / Linux host：把 Windows 路徑（含反斜線或正斜線）轉成 /mnt/X/...
+    m = re.match(r'^([A-Za-z]):[\\/](.*)$', path_str)
+    if m:
+        drive = m.group(1).lower()
+        rest = m.group(2).replace('\\', '/')
+        return f"/mnt/{drive}/{rest}"
+    return path_str
 
 
 # =====================================================================
@@ -80,8 +113,8 @@ def convert_one_file(args):
     # 寫成兩欄 ASCII txt
     out_filename = f'{Exp_para}{voltage}_mV.txt'
     out_path = os.path.join(output_dir, out_filename)
-    F = np.column_stack([signal, trigger])
-    np.savetxt(out_path, F, fmt='%14.7e')
+    pd.DataFrame({'sig': signal, 'trig': trigger}).to_csv(
+        out_path, sep=' ', header=False, index=False, float_format='%.7e')
 
     return f'OK: {out_filename}'
 
@@ -100,15 +133,18 @@ if __name__ == '__main__':
     cli = parser.parse_args()
 
     if cli.input:
-        folder_path = os.path.dirname(os.path.abspath(cli.input))
+        cli_input = normalize_path(cli.input)
+        folder_path = os.path.dirname(os.path.abspath(cli_input))
         Save_Adress = folder_path
-        file_list = [os.path.basename(cli.input)]
+        file_list = [os.path.basename(cli_input)]
     elif cli.dir:
-        folder_path = cli.dir
+        folder_path = normalize_path(cli.dir)
         Save_Adress = folder_path
         file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
         file_list.sort()
     else:
+        folder_path = normalize_path(folder_path)
+        Save_Adress = folder_path
         file_list = [f for f in os.listdir(folder_path) if f.lower().endswith('.tdms')]
         file_list.sort()
 
